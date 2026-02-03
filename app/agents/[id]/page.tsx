@@ -96,7 +96,8 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
           return
         }
         const agentData = await agentRes.json()
-        setAgent(agentData.agent)
+        // API returns agent fields directly at root level
+        setAgent(agentData)
 
         // Fetch reputation
         const repRes = await fetch(`/api/agents/${agentId}/reputation`)
