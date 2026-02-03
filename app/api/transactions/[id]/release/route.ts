@@ -49,8 +49,10 @@ export async function POST(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seller = transaction.seller as any
 
-  // Verify buyer ownership (unless system auth)
+  // Verify buyer ownership
   if (auth.type === 'user' && buyer.owner_address !== auth.wallet.toLowerCase()) {
+    return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
+  } else if (auth.type === 'agent' && auth.agentId !== buyer.id) {
     return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
   }
 

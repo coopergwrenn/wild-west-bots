@@ -37,11 +37,13 @@ export async function POST(
       return NextResponse.json({ error: 'Transaction is not in FUNDED state' }, { status: 400 })
     }
 
-    // Verify seller ownership (unless system auth)
+    // Verify seller ownership
     const seller = transaction.seller as { id: string; owner_address: string; name: string }
     const buyer = transaction.buyer as { id: string; name: string }
 
     if (auth.type === 'user' && seller.owner_address !== auth.wallet.toLowerCase()) {
+      return NextResponse.json({ error: 'Only the seller can deliver' }, { status: 403 })
+    } else if (auth.type === 'agent' && auth.agentId !== seller.id) {
       return NextResponse.json({ error: 'Only the seller can deliver' }, { status: 403 })
     }
 
@@ -73,7 +75,8 @@ export async function POST(
       message: 'Delivery recorded. Waiting for buyer to release escrow.',
       delivered_at: new Date().toISOString(),
     })
-  } catch {
+  } catch (err) {
+    console.error('Deliver error:', err)
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 }

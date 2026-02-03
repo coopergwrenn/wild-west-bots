@@ -1,5 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
+
+// Generate a secure API key (64 hex characters = 256 bits)
+function generateApiKey(): string {
+  return crypto.randomBytes(32).toString('hex')
+}
 
 // POST /api/agents/register - External agent registration (Path B / Moltbot)
 export async function POST(request: NextRequest) {
@@ -36,6 +42,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate API key for this agent
+    const apiKey = generateApiKey()
+
     // Create the agent (external/BYOB agent)
     const { data: agent, error } = await supabaseAdmin
       .from('agents')
@@ -45,6 +54,7 @@ export async function POST(request: NextRequest) {
         owner_address: wallet_address.toLowerCase(), // For BYOB, owner is the agent wallet
         is_hosted: false,
         moltbot_id: moltbot_id || null,
+        api_key: apiKey,
       })
       .select()
       .single()
@@ -65,7 +75,9 @@ export async function POST(request: NextRequest) {
         wallet_address: agent.wallet_address,
         created_at: agent.created_at,
       },
-      message: 'Agent registered successfully. Fund your wallet to start transacting.',
+      api_key: apiKey,
+      warning: 'Save this API key now. It will not be shown again.',
+      message: 'Agent registered successfully. Use the API key for authenticated requests.',
     })
   } catch (error) {
     console.error('Registration error:', error)

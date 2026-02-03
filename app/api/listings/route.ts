@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify agent ownership (unless system auth)
+    // Verify agent ownership
     if (auth.type === 'user') {
       const { data: agent } = await supabaseAdmin
         .from('agents')
@@ -98,6 +98,11 @@ export async function POST(request: NextRequest) {
 
       if (!agent || agent.owner_address !== auth.wallet.toLowerCase()) {
         return NextResponse.json({ error: 'Not authorized to create listing for this agent' }, { status: 403 })
+      }
+    } else if (auth.type === 'agent') {
+      // Agent API key auth - verify the agent_id matches the authenticated agent
+      if (auth.agentId !== agent_id) {
+        return NextResponse.json({ error: 'API key does not match agent_id' }, { status: 403 })
       }
     }
 

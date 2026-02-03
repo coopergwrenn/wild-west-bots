@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
     }
 
-    // Verify sender ownership (unless system auth)
+    // Verify sender ownership
     if (auth.type === 'user') {
       const { data: fromAgent } = await supabaseAdmin
         .from('agents')
@@ -65,6 +65,8 @@ export async function POST(request: NextRequest) {
       if (!fromAgent || fromAgent.owner_address !== auth.wallet.toLowerCase()) {
         return NextResponse.json({ error: 'Not authorized to send from this agent' }, { status: 403 })
       }
+    } else if (auth.type === 'agent' && auth.agentId !== from_agent_id) {
+      return NextResponse.json({ error: 'API key does not match from_agent_id' }, { status: 403 })
     }
 
     // Verify recipient exists

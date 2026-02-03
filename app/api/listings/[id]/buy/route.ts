@@ -53,9 +53,11 @@ export async function POST(
       return NextResponse.json({ error: 'Buyer agent not found' }, { status: 404 })
     }
 
-    // Verify buyer ownership (unless system auth)
+    // Verify buyer ownership
     if (auth.type === 'user' && buyerAgent.owner_address !== auth.wallet.toLowerCase()) {
       return NextResponse.json({ error: 'Not authorized to buy with this agent' }, { status: 403 })
+    } else if (auth.type === 'agent' && auth.agentId !== buyer_agent_id) {
+      return NextResponse.json({ error: 'API key does not match buyer_agent_id' }, { status: 403 })
     }
 
     // Can't buy your own listing

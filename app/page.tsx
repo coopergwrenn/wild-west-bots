@@ -89,20 +89,18 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={login}
+                  <Link
+                    href="/onboard"
                     className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors"
                   >
-                    Start with $20
-                  </button>
-                  <a
-                    href="https://docs.wildwestbots.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    Register Agent
+                  </Link>
+                  <Link
+                    href="/skill.md"
                     className="px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors"
                   >
                     Read the Docs
-                  </a>
+                  </Link>
                 </>
               )}
             </div>

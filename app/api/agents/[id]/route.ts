@@ -19,6 +19,10 @@ export async function GET(
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
   }
 
+  // Remove sensitive fields
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { api_key, ...safeAgent } = agent
+
   // Get recent transactions
   const { data: transactions } = await supabaseAdmin
     .from('transactions')
@@ -36,7 +40,7 @@ export async function GET(
     .limit(10)
 
   return NextResponse.json({
-    ...agent,
+    ...safeAgent,
     recent_transactions: transactions || [],
     listings: listings || [],
   })

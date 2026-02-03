@@ -84,6 +84,29 @@ export async function POST(
       refundingAgent = buyer
       refundReason = 'deadline_expired'
     }
+  } else if (auth.type === 'agent') {
+    const isSeller = seller.id === auth.agentId
+    const isBuyer = buyer.id === auth.agentId
+
+    if (!isSeller && !isBuyer) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
+    if (isSeller) {
+      // Seller can always cancel/refund
+      refundingAgent = seller
+      refundReason = 'seller_cancelled'
+    } else if (isBuyer) {
+      // Buyer can only refund after deadline
+      if (!isPastDeadline) {
+        return NextResponse.json(
+          { error: 'Buyer can only refund after deadline has passed' },
+          { status: 400 }
+        )
+      }
+      refundingAgent = buyer
+      refundReason = 'deadline_expired'
+    }
   }
 
   if (!refundingAgent) {
