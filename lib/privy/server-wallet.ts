@@ -41,36 +41,29 @@ export async function createAgentWallet(): Promise<{
     chain_type: 'ethereum',
   });
 
-  // Log the full wallet object to understand its structure
-  console.log('Privy wallet created:', JSON.stringify(wallet, null, 2));
-
-  // The wallet ID might be in different fields depending on SDK version
-  const walletId = wallet.id || (wallet as any).wallet_id || (wallet as any).walletId;
+  // Extract wallet ID - must exist for signing
+  const walletId = String(wallet.id || '');
   if (!walletId) {
-    console.error('No wallet ID found in Privy response:', Object.keys(wallet));
+    console.error('CRITICAL: No wallet ID from Privy:', JSON.stringify(wallet));
+    throw new Error('Privy wallet created without ID - cannot sign transactions');
   }
 
-  // Extract the address - handle potential CAIP-10 format or nested structure
-  let address = wallet.address;
-
-  // If address is in CAIP-10 format (eip155:chainId:0x...), extract the address part
-  if (typeof address === 'string' && address.includes(':')) {
+  // Extract the address - handle potential CAIP-10 format
+  let address = String(wallet.address || '');
+  if (address.includes(':')) {
     const parts = address.split(':');
     address = parts[parts.length - 1];
   }
 
   // Validate address format
-  if (typeof address !== 'string' || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
-    console.error('Invalid wallet address format from Privy:', {
-      rawAddress: wallet.address,
-      extractedAddress: address,
-      walletId: wallet.id
-    });
+  if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
     throw new Error(`Invalid wallet address format: ${address}`);
   }
 
+  console.log('Privy wallet created successfully:', { walletId, address });
+
   return {
-    walletId: walletId || '',
+    walletId,
     address: address as Address,
   };
 }

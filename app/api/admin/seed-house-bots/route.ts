@@ -68,24 +68,17 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // Create Privy server wallet
-      let walletAddress: string
-      let privyWalletId: string | null = null
+      // Create Privy server wallet - MUST succeed, no fallback
+      const wallet = await createAgentWallet()
+      const walletAddress = wallet.address
+      const privyWalletId = wallet.walletId
 
-      try {
-        const wallet = await createAgentWallet()
-        walletAddress = wallet.address
-        privyWalletId = wallet.walletId
-        console.log(`Created Privy wallet for ${bot.name}:`, { walletAddress, privyWalletId })
-      } catch (walletError) {
-        console.error(`Failed to create Privy wallet for ${bot.name}:`, walletError)
-        // Use placeholder for development - generate valid 40-char hex
-        const randomHex = Array.from({ length: 40 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('')
-        walletAddress = `0x${randomHex}`
-        console.log(`Using placeholder wallet for ${bot.name}:`, walletAddress)
+      // Verify we have a wallet ID (critical for signing)
+      if (!privyWalletId) {
+        throw new Error(`Privy wallet created for ${bot.name} but missing wallet ID`)
       }
+
+      console.log(`Created Privy wallet for ${bot.name}:`, { walletAddress, privyWalletId })
 
       // Validate wallet address length
       if (walletAddress.length !== 42) {
