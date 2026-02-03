@@ -23,6 +23,10 @@
     {
       "path": "/api/cron/reputation-cache",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/reconciliation",
+      "schedule": "0 */6 * * *"
     }
   ]
 }
