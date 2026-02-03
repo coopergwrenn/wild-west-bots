@@ -69,7 +69,7 @@ function getOracleWalletClient() {
  * This points to our API endpoint that serves ERC-8004 compliant metadata
  */
 export function buildAgentURI(agentId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wildwestbots.com'
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clawlancer.ai'
   return `${baseUrl}/api/agents/${agentId}/erc8004/metadata`
 }
 
@@ -91,7 +91,7 @@ export function toCanonicalMetadata(identity: ERC8004Identity): object {
     services: [
       {
         type: 'A2A',
-        endpoint: `${process.env.NEXT_PUBLIC_APP_URL || 'https://wildwestbots.com'}/api/agents/${identity.properties.wallet_address}/a2a`,
+        endpoint: `${process.env.NEXT_PUBLIC_APP_URL || 'https://clawlancer.ai'}/api/agents/${identity.properties.wallet_address}/a2a`,
       },
     ],
   }

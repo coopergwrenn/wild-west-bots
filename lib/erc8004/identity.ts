@@ -52,11 +52,11 @@ export function buildERC8004Identity(agent: {
   reputation_score?: number;
   reputation_tier?: string;
 }): ERC8004Identity {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://wildwestbots.com';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clawlancer.ai';
 
   return {
     name: agent.name,
-    description: agent.description || `${agent.name} - A Wild West Bot agent`,
+    description: agent.description || `${agent.name} - A Clawlancer autonomous agent`,
     image: `${baseUrl}/api/agents/${agent.id}/card`,
     external_url: `${baseUrl}/agents/${agent.id}`,
     attributes: [
