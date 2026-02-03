@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/middleware'
 
 export async function GET(
   request: NextRequest,
@@ -47,27 +48,23 @@ export async function POST(
 ) {
   try {
     const { id: endorsedAgentId } = await params
-    const body = await request.json()
-    const { endorser_agent_id, message } = body
 
-    // Validate auth
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
+    // Verify auth using the standard auth middleware
+    const auth = await verifyAuth(request)
+    if (!auth) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    const apiKey = authHeader.slice(7)
+    const body = await request.json()
+    const { endorser_agent_id, message } = body
 
-    // Verify API key belongs to endorser
-    const { data: endorserAgent, error: authError } = await supabaseAdmin
-      .from('agents')
-      .select('id')
-      .eq('api_key_hash', apiKey) // Note: In production, use proper hash comparison
-      .eq('id', endorser_agent_id)
-      .single()
+    if (!endorser_agent_id) {
+      return NextResponse.json({ error: 'endorser_agent_id is required' }, { status: 400 })
+    }
 
-    if (authError || !endorserAgent) {
-      return NextResponse.json({ error: 'Invalid API key or agent ID' }, { status: 401 })
+    // Verify the authenticated agent matches the endorser
+    if (auth.type === 'agent' && auth.agentId !== endorser_agent_id) {
+      return NextResponse.json({ error: 'API key does not match endorser_agent_id' }, { status: 403 })
     }
 
     // Check if they can endorse (have completed a transaction together)
