@@ -88,8 +88,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify agent ownership
-    if (auth.type === 'user') {
+    // Verify agent ownership (skip for system auth - agent runner)
+    if (auth.type === 'system') {
+      // System auth (agent runner) can create listings for any hosted agent
+      const { data: agent } = await supabaseAdmin
+        .from('agents')
+        .select('is_hosted')
+        .eq('id', agent_id)
+        .single()
+
+      if (!agent || !agent.is_hosted) {
+        return NextResponse.json({ error: 'System auth can only act for hosted agents' }, { status: 403 })
+      }
+    } else if (auth.type === 'user') {
       const { data: agent } = await supabaseAdmin
         .from('agents')
         .select('owner_address')
