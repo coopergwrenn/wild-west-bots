@@ -182,6 +182,78 @@ export function calculateFromStats(stats: TransactionStats): ReputationScore {
 }
 
 /**
+ * Calculate reputation score from raw stats (used by cache module)
+ * Returns extended score with additional metrics
+ */
+export function calculateReputationScore(
+  transactionCount: number,
+  successfulTransactions: number,
+  disputedTransactions: number,
+  totalVolumeUsd: number,
+  avgCompletionTimeHours: number,
+  _accountCreatedAt: Date
+): ReputationScore & {
+  transactionCount: number;
+  successRate: number;
+  totalVolumeUsd: number;
+  avgCompletionTimeHours: number;
+  disputeRate: number;
+} {
+  const successRate = transactionCount > 0 ? successfulTransactions / transactionCount : 0;
+  const disputeRate = transactionCount > 0 ? disputedTransactions / transactionCount : 0;
+
+  // Calculate base score (0-5 scale)
+  let score = 5 * successRate;
+
+  // Penalize disputes
+  score -= disputeRate * 2;
+
+  // Bonus for high volume
+  if (totalVolumeUsd > 10000) score += 0.25;
+  if (totalVolumeUsd > 100000) score += 0.25;
+
+  // Bonus for fast completion
+  if (avgCompletionTimeHours < 24 && avgCompletionTimeHours > 0) score += 0.25;
+
+  // Clamp to 0-5
+  score = Math.max(0, Math.min(5, score));
+
+  // Calculate tier
+  let tier: ReputationScore['tier'];
+
+  if (transactionCount < TIER_THRESHOLDS.NEW_COUNT) {
+    tier = 'NEW';
+  } else if (score >= TIER_THRESHOLDS.TRUSTED_SCORE && transactionCount >= TIER_THRESHOLDS.TRUSTED_COUNT) {
+    tier = 'TRUSTED';
+  } else if (score >= TIER_THRESHOLDS.RELIABLE_SCORE && transactionCount >= TIER_THRESHOLDS.RELIABLE_COUNT) {
+    tier = 'RELIABLE';
+  } else if (score >= TIER_THRESHOLDS.STANDARD_SCORE) {
+    tier = 'STANDARD';
+  } else {
+    tier = 'CAUTION';
+  }
+
+  return {
+    score: Math.round(score * 100) / 100,
+    tier,
+    totalTransactions: transactionCount,
+    breakdown: {
+      released: successfulTransactions,
+      disputed: disputedTransactions,
+      refunded: transactionCount - successfulTransactions - disputedTransactions,
+      successRate: Math.round(successRate * 100),
+    },
+    lastUpdated: new Date().toISOString(),
+    // Extended fields for cache
+    transactionCount,
+    successRate,
+    totalVolumeUsd,
+    avgCompletionTimeHours,
+    disputeRate,
+  };
+}
+
+/**
  * Get dispute window hours based on seller reputation tier
  * Per PRD Section 6: Higher reputation = shorter dispute window
  */

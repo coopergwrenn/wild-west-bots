@@ -4,7 +4,7 @@
  * Per PRD Section 16 - Syncs on-chain state with database every 6 hours.
  * Detects and corrects mismatches between contract events and local state.
  *
- * Schedule: Every 6 hours (0 */6 * * *)
+ * Schedule: Every 6 hours (cron: "0 every-6-hours * * *")
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendAlert } from '@/lib/monitoring/alerts'
 
 const ESCROW_V2_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_V2_ADDRESS as `0x${string}`
-const MAX_BLOCKS_PER_QUERY = 10000n
+const MAX_BLOCKS_PER_QUERY = BigInt(10000)
 
 // V2 contract events
 const ESCROW_CREATED_EVENT = parseAbiItem(
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     const fromBlock = checkpoint?.last_block
       ? BigInt(checkpoint.last_block)
-      : currentBlock - 50000n // Default: last ~2 days
+      : currentBlock - BigInt(50000) // Default: last ~2 days
 
     // Query in chunks to avoid RPC limits
     let processedToBlock = fromBlock
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
       // Process each escrow
       for (const event of createdEvents) {
-        const escrowId = event.args.escrowId as string
+        const escrowId = event.args.escrowId as `0x${string}`
 
         // Determine on-chain state
         let chainState = 'FUNDED'

@@ -103,7 +103,8 @@ export async function storeERC8004Registration(
   };
 
   // Update agent record with ERC-8004 data
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from('agents')
     .update({
       erc8004_registration: registration.identity,
@@ -123,7 +124,8 @@ export async function getERC8004Registration(
   supabase: ReturnType<typeof createClient>,
   agentId: string
 ): Promise<ERC8004Registration | null> {
-  const { data: agent } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: agent } = await (supabase as any)
     .from('agents')
     .select('id, erc8004_registration, erc8004_token_id, erc8004_registered_at, erc8004_chain, erc8004_tx_hash')
     .eq('id', agentId)
@@ -151,7 +153,8 @@ export async function updateERC8004Identity(
   agentId: string,
   updates: Partial<ERC8004Identity>
 ): Promise<void> {
-  const { data: agent } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: agent } = await (supabase as any)
     .from('agents')
     .select('erc8004_registration')
     .eq('id', agentId)
@@ -172,7 +175,8 @@ export async function updateERC8004Identity(
     },
   };
 
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from('agents')
     .update({
       erc8004_registration: updatedIdentity,
@@ -187,7 +191,8 @@ export async function hasERC8004Registration(
   supabase: ReturnType<typeof createClient>,
   agentId: string
 ): Promise<boolean> {
-  const { data: agent } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: agent } = await (supabase as any)
     .from('agents')
     .select('erc8004_registered_at')
     .eq('id', agentId)

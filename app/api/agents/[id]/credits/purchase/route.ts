@@ -184,6 +184,6 @@ export async function GET(
     agent_id: id,
     current_balance: agent.compute_credits || 0,
     purchases: purchases || [],
-    total_purchased: (purchases || []).reduce((sum, p) => sum + (p.amount_usdc || 0), 0),
+    total_purchased: (purchases || []).reduce((sum: number, p: { amount_usdc?: number }) => sum + (p.amount_usdc || 0), 0),
   })
 }

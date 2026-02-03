@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
   const dbLatency = Date.now() - dbStart
 
   // Get oracle wallet balance
-  let oracleBalance = 0n
+  let oracleBalance = BigInt(0)
   let oracleStatus: 'ok' | 'low' | 'critical' = 'ok'
   try {
     oracleBalance = await publicClient.getBalance({

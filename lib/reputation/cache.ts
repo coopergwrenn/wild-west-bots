@@ -8,6 +8,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { calculateReputationScore, ReputationScore } from './calculate';
 
+// Extended reputation score with additional metrics from calculateReputationScore
+export type ExtendedReputationScore = ReputationScore & {
+  transactionCount: number;
+  successRate: number;
+  totalVolumeUsd: number;
+  avgCompletionTimeHours: number;
+  disputeRate: number;
+};
+
 export interface CachedReputation {
   agent_id: string;
   score: number;
@@ -27,7 +36,8 @@ export async function getCachedReputation(
   supabase: ReturnType<typeof createClient>,
   agentId: string
 ): Promise<CachedReputation | null> {
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from('reputation_cache')
     .select('*')
     .eq('agent_id', agentId)
@@ -42,9 +52,10 @@ export async function getCachedReputation(
 export async function updateReputationCache(
   supabase: ReturnType<typeof createClient>,
   agentId: string,
-  reputation: ReputationScore
+  reputation: ExtendedReputationScore
 ): Promise<void> {
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from('reputation_cache')
     .upsert({
       agent_id: agentId,
@@ -66,9 +77,10 @@ export async function updateReputationCache(
 export async function recalculateReputation(
   supabase: ReturnType<typeof createClient>,
   agentId: string
-): Promise<ReputationScore> {
+): Promise<ExtendedReputationScore> {
   // Get agent details
-  const { data: agent } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: agent } = await (supabase as any)
     .from('agents')
     .select('id, created_at')
     .eq('id', agentId)
@@ -79,30 +91,39 @@ export async function recalculateReputation(
   }
 
   // Get transaction stats
-  const { data: transactions } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: transactions } = await (supabase as any)
     .from('transactions')
     .select('state, amount_wei, price_wei, created_at, completed_at, disputed')
     .or(`buyer_agent_id.eq.${agentId},seller_agent_id.eq.${agentId}`);
 
-  const txs = transactions || [];
+  interface TransactionRow {
+    state: string;
+    amount_wei?: string;
+    price_wei?: string;
+    created_at: string;
+    completed_at?: string;
+    disputed?: boolean;
+  }
+  const txs: TransactionRow[] = transactions || [];
 
   // Calculate stats
   const transactionCount = txs.length;
-  const successfulTransactions = txs.filter(t => t.state === 'RELEASED').length;
-  const disputedTransactions = txs.filter(t => t.disputed).length;
+  const successfulTransactions = txs.filter((t: TransactionRow) => t.state === 'RELEASED').length;
+  const disputedTransactions = txs.filter((t: TransactionRow) => t.disputed).length;
 
   // Calculate total volume in USD (assuming USDC with 6 decimals)
-  const totalVolumeUsd = txs.reduce((sum, t) => {
+  const totalVolumeUsd = txs.reduce((sum: number, t: TransactionRow) => {
     const amount = t.amount_wei || t.price_wei || '0';
     return sum + parseFloat(amount) / 1e6;
   }, 0);
 
   // Calculate average completion time for released transactions
-  const completedTxs = txs.filter(t => t.state === 'RELEASED' && t.created_at && t.completed_at);
+  const completedTxs = txs.filter((t: TransactionRow) => t.state === 'RELEASED' && t.created_at && t.completed_at);
   const avgCompletionTimeHours = completedTxs.length > 0
-    ? completedTxs.reduce((sum, t) => {
+    ? completedTxs.reduce((sum: number, t: TransactionRow) => {
         const created = new Date(t.created_at).getTime();
-        const completed = new Date(t.completed_at).getTime();
+        const completed = new Date(t.completed_at!).getTime();
         return sum + (completed - created) / (1000 * 60 * 60);
       }, 0) / completedTxs.length
     : 0;
@@ -121,7 +142,8 @@ export async function recalculateReputation(
   await updateReputationCache(supabase, agentId, reputation);
 
   // Also update agent's reputation columns
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from('agents')
     .update({
       reputation_score: reputation.score,
@@ -142,7 +164,8 @@ export async function getBatchReputation(
   supabase: ReturnType<typeof createClient>,
   agentIds: string[]
 ): Promise<Map<string, CachedReputation>> {
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from('reputation_cache')
     .select('*')
     .in('agent_id', agentIds);
@@ -164,7 +187,8 @@ export async function invalidateReputationCache(
   agentId: string
 ): Promise<void> {
   // Mark as stale by updating calculated_at to far past
-  await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from('reputation_cache')
     .update({
       calculated_at: new Date(0).toISOString(),
@@ -181,12 +205,13 @@ export async function getStaleReputationCaches(
 ): Promise<string[]> {
   const staleThreshold = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000).toISOString();
 
-  const { data } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
     .from('reputation_cache')
     .select('agent_id')
     .lt('calculated_at', staleThreshold);
 
-  return (data || []).map(d => d.agent_id);
+  return (data || []).map((d: { agent_id: string }) => d.agent_id);
 }
 
 /**

@@ -23,7 +23,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 
 const ESCROW_V2_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_CONTRACT_V2_ADDRESS as `0x${string}`
-const DEPLOYMENT_BLOCK = 25000000n // Approximate deployment block - adjust as needed
+const DEPLOYMENT_BLOCK = BigInt(25000000) // Approximate deployment block - adjust as needed
 
 // Parse command line args
 const args = process.argv.slice(2)
@@ -102,7 +102,7 @@ async function main() {
   console.log('Step 1: Fetching all contract events...')
   console.log('')
 
-  const MAX_BLOCKS = 50000n
+  const MAX_BLOCKS = BigInt(50000)
   const allCreated: EscrowEvent[] = []
   const releasedMap = new Map<string, { blockNumber: bigint; txHash: string }>()
   const refundedMap = new Map<string, { blockNumber: bigint; txHash: string }>()
@@ -326,7 +326,7 @@ async function main() {
         released: 0,
         refunded: 0,
         disputed: 0,
-        totalVolume: 0n,
+        totalVolume: BigInt(0),
       })
     }
 
