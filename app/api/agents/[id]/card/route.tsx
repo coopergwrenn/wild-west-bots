@@ -3,7 +3,7 @@
  *
  * Per PRD Section 10 - GET /api/agents/[id]/card
  * Generates agent ID card as PNG image (1200x630 for OpenGraph)
- * Dark gunmetal metallic base with RGB holographic accents
+ * Silver brushed metal base with RGB holographic shimmer overlay
  */
 
 import { ImageResponse } from 'next/og'
@@ -69,10 +69,6 @@ export async function GET(
     const mrzLine1 = `P<WWB${agent.name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 20).padEnd(20, '<')}<<<<<<<<<`
     const mrzLine2 = `${walletFull.slice(2, 12).toUpperCase()}${id.slice(0, 8).toUpperCase()}<${score.toString().padStart(3, '0')}<<<${transactions.toString().padStart(4, '0')}<<<<<<`
 
-    // RGB holographic gradients - brighter colors to pop against dark background
-    const holoGradient1 = 'linear-gradient(125deg, transparent 0%, transparent 5%, rgba(255,50,150,0.25) 5%, rgba(255,50,150,0.25) 12%, rgba(255,0,100,0.2) 12%, rgba(255,0,100,0.2) 18%, rgba(150,50,255,0.2) 18%, rgba(150,50,255,0.2) 25%, rgba(50,150,255,0.25) 25%, rgba(50,150,255,0.25) 32%, rgba(0,255,200,0.3) 32%, rgba(0,255,200,0.3) 40%, rgba(50,255,100,0.3) 40%, rgba(50,255,100,0.3) 48%, rgba(150,255,50,0.25) 48%, rgba(150,255,50,0.25) 55%, rgba(255,255,50,0.2) 55%, rgba(255,255,50,0.2) 62%, rgba(255,150,50,0.2) 62%, rgba(255,150,50,0.2) 70%, rgba(255,100,80,0.2) 70%, rgba(255,100,80,0.2) 78%, rgba(255,50,120,0.2) 78%, rgba(255,50,120,0.2) 85%, transparent 85%, transparent 100%)'
-    const holoGradient2 = 'linear-gradient(155deg, transparent 0%, transparent 15%, rgba(0,255,255,0.15) 15%, rgba(0,255,255,0.15) 25%, rgba(100,100,255,0.18) 25%, rgba(100,100,255,0.18) 35%, rgba(200,50,255,0.12) 35%, rgba(200,50,255,0.12) 45%, rgba(255,50,200,0.1) 45%, rgba(255,50,200,0.1) 55%, transparent 55%, transparent 100%)'
-
     return new ImageResponse(
       (
         <div
@@ -83,7 +79,12 @@ export async function GET(
             position: 'relative',
           }}
         >
-          {/* DARK GUNMETAL METALLIC BASE */}
+          {/* ============================================ */}
+          {/* LAYER 1: BRUSHED STAINLESS STEEL BASE       */}
+          {/* Strong horizontal gradient like reference   */}
+          {/* ============================================ */}
+
+          {/* Main metallic gradient - VERY DARK left to BRIGHT center */}
           <div
             style={{
               position: 'absolute',
@@ -91,11 +92,11 @@ export async function GET(
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'linear-gradient(145deg, #1a1a1f 0%, #252530 15%, #1e1e25 30%, #2a2a35 50%, #202028 70%, #28282f 85%, #1c1c22 100%)',
+              background: 'linear-gradient(90deg, #404048 0%, #505058 4%, #606068 8%, #787880 15%, #909098 25%, #a8a8b0 35%, #c0c0c8 48%, #d8d8e0 62%, #e8e8f0 75%, #dcdce4 85%, #c8c8d0 93%, #b0b0b8 100%)',
             }}
           />
 
-          {/* Subtle brushed metal texture effect */}
+          {/* BRUSHED TEXTURE - Visible horizontal stripes (reduced for text legibility) */}
           <div
             style={{
               position: 'absolute',
@@ -103,11 +104,27 @@ export async function GET(
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.02) 100%)',
+              display: 'flex',
+              flexDirection: 'column',
             }}
-          />
+          >
+            {Array.from({ length: 210 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  width: '100%',
+                  height: 3,
+                  backgroundColor: i % 3 === 0
+                    ? 'rgba(0,0,0,0.08)'
+                    : i % 3 === 1
+                      ? 'rgba(255,255,255,0.12)'
+                      : 'rgba(0,0,0,0.04)',
+                }}
+              />
+            ))}
+          </div>
 
-          {/* RGB HOLOGRAPHIC LAYER 1 - Main diagonal bands */}
+          {/* Vertical shading for metallic depth */}
           <div
             style={{
               position: 'absolute',
@@ -115,11 +132,11 @@ export async function GET(
               left: 0,
               right: 0,
               bottom: 0,
-              background: holoGradient1,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 10%, transparent 30%, transparent 70%, rgba(0,0,0,0.05) 90%, rgba(0,0,0,0.1) 100%)',
             }}
           />
 
-          {/* RGB HOLOGRAPHIC LAYER 2 - Secondary bands */}
+          {/* Metallic highlight - diagonal light reflection */}
           <div
             style={{
               position: 'absolute',
@@ -127,11 +144,16 @@ export async function GET(
               left: 0,
               right: 0,
               bottom: 0,
-              background: holoGradient2,
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 30%, transparent 50%, rgba(255,255,255,0.1) 70%, transparent 100%)',
             }}
           />
 
-          {/* Subtle edge glow */}
+          {/* ============================================ */}
+          {/* LAYER 2: SUBTLE HOLOGRAPHIC SHIMMER         */}
+          {/* Very subtle - brushed metal dominates       */}
+          {/* ============================================ */}
+
+          {/* Subtle rainbow shimmer */}
           <div
             style={{
               position: 'absolute',
@@ -139,23 +161,13 @@ export async function GET(
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'linear-gradient(90deg, rgba(0,255,200,0.08) 0%, transparent 5%, transparent 95%, rgba(255,0,150,0.08) 100%)',
+              background: 'linear-gradient(125deg, transparent 0%, transparent 20%, rgba(255,100,180,0.04) 25%, rgba(180,80,255,0.035) 35%, rgba(100,150,255,0.04) 45%, rgba(50,200,200,0.045) 55%, rgba(80,255,160,0.04) 65%, rgba(200,255,80,0.035) 75%, transparent 80%, transparent 100%)',
             }}
           />
 
-          {/* Vignette for depth */}
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.4) 100%)',
-            }}
-          />
-
-          {/* Main content */}
+          {/* ============================================ */}
+          {/* LAYER 3: CONTENT                            */}
+          {/* ============================================ */}
           <div
             style={{
               display: 'flex',
@@ -168,12 +180,12 @@ export async function GET(
           >
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-              <div style={{ display: 'flex', fontFamily: 'PressStart2P', fontSize: 24, color: '#ffffff', textShadow: '0 0 20px rgba(0,255,200,0.5), 0 0 40px rgba(0,255,200,0.3)' }}>
+              <div style={{ display: 'flex', fontFamily: 'PressStart2P', fontSize: 22, color: '#000000', textShadow: '0 1px 2px rgba(255,255,255,0.3)' }}>
                 THE WILD WEST
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#888', fontSize: 11, letterSpacing: 1, marginRight: 8 }}>AGENT ID</div>
-                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#fff', fontSize: 14 }}>
+                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 13, letterSpacing: 1, marginRight: 8 }}>AGENT ID</div>
+                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 15 }}>
                   #{id.slice(0, 8).toUpperCase()}
                 </div>
               </div>
@@ -183,20 +195,19 @@ export async function GET(
             <div style={{ display: 'flex', flex: 1 }}>
               {/* Left side - Pixelated Avatar */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginRight: 40 }}>
-                {/* Pixelated robot avatar frame */}
+                {/* Avatar frame */}
                 <div
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
                     width: 160,
                     height: 180,
-                    backgroundColor: 'rgba(0,0,0,0.4)',
-                    border: '2px solid rgba(255,255,255,0.2)',
+                    backgroundColor: 'rgba(255,255,255,0.4)',
+                    border: '2px solid rgba(0,0,0,0.15)',
                     padding: 10,
-                    boxShadow: '0 0 20px rgba(0,255,200,0.1), inset 0 0 20px rgba(0,0,0,0.3)',
                   }}
                 >
-                  {/* Pixel art robot - row by row */}
+                  {/* Pixel art robot */}
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex' }}>
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
@@ -210,10 +221,10 @@ export async function GET(
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex' }}>
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#00ffcc' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#38b2ac' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#00ffcc' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#38b2ac' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                     </div>
                   </div>
@@ -239,21 +250,21 @@ export async function GET(
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex' }}>
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex' }}>
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
-                      <div style={{ width: 16, height: 16, backgroundColor: '#ff6b9d' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
+                      <div style={{ width: 16, height: 16, backgroundColor: '#ed8936' }} />
                       <div style={{ width: 16, height: 16, backgroundColor: '#4a5568' }} />
                     </div>
                   </div>
@@ -275,13 +286,12 @@ export async function GET(
                     display: 'flex',
                     alignItems: 'center',
                     marginTop: 12,
-                    padding: '8px 16px',
-                    backgroundColor: 'rgba(0,255,200,0.1)',
-                    border: '1px solid rgba(0,255,200,0.3)',
-                    boxShadow: '0 0 10px rgba(0,255,200,0.2)',
+                    padding: '6px 14px',
+                    backgroundColor: 'rgba(0,0,0,0.15)',
+                    border: '1px solid rgba(0,0,0,0.3)',
                   }}
                 >
-                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#00ffcc', fontSize: 12, letterSpacing: 1 }}>
+                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 11, letterSpacing: 1 }}>
                     {tierLabel}
                   </div>
                 </div>
@@ -290,29 +300,29 @@ export async function GET(
               {/* Right side - Info */}
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 {/* Agent name */}
-                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>NAME</div>
-                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', fontSize: 36, color: '#ffffff', textShadow: '0 0 30px rgba(255,255,255,0.3)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2, marginBottom: 4 }}>NAME</div>
+                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', fontSize: 34, color: '#000' }}>
                     {agent.name.toUpperCase()}
                   </div>
                 </div>
 
                 {/* Wallet */}
-                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 20 }}>
-                  <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>WALLET</div>
+                <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 18 }}>
+                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2, marginBottom: 4 }}>WALLET</div>
                   <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#ccc', fontSize: 15 }}>{walletShort}</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 15 }}>{walletShort}</div>
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         marginLeft: 10,
                         padding: '3px 10px',
-                        backgroundColor: 'rgba(0,255,150,0.15)',
-                        border: '1px solid rgba(0,255,150,0.3)',
+                        backgroundColor: 'rgba(0,120,80,0.3)',
+                        border: '1px solid rgba(0,120,80,0.6)',
                       }}
                     >
-                      <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#00ff99', fontSize: 9 }}>VERIFIED</div>
+                      <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#004422', fontSize: 10 }}>VERIFIED</div>
                     </div>
                   </div>
                 </div>
@@ -320,59 +330,16 @@ export async function GET(
                 {/* Stats row */}
                 <div style={{ display: 'flex' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', marginRight: 40 }}>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>REPUTATION</div>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#fff', fontSize: 28 }}>{score}/100</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2, marginBottom: 4 }}>REPUTATION</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 28 }}>{score}/100</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', marginRight: 40 }}>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>TRADES</div>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#fff', fontSize: 28 }}>{transactions}</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2, marginBottom: 4 }}>TRADES</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 28 }}>{transactions}</div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2, marginBottom: 4 }}>STATUS</div>
-                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#00ff99', fontSize: 28 }}>ACTIVE</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Target circle graphic - RGB glow */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 130,
-                  height: 130,
-                  borderRadius: 65,
-                  border: '3px solid rgba(255,50,150,0.5)',
-                  marginLeft: 20,
-                  boxShadow: '0 0 30px rgba(255,50,150,0.3), inset 0 0 20px rgba(255,50,150,0.1)',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 90,
-                    height: 90,
-                    borderRadius: 45,
-                    border: '2px solid rgba(150,50,255,0.4)',
-                    boxShadow: '0 0 20px rgba(150,50,255,0.2)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 50,
-                      height: 50,
-                      borderRadius: 25,
-                      border: '2px solid rgba(0,255,200,0.4)',
-                      boxShadow: '0 0 15px rgba(0,255,200,0.3)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,255,200,0.6)', boxShadow: '0 0 10px rgba(0,255,200,0.8)' }} />
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2, marginBottom: 4 }}>STATUS</div>
+                    <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#004422', fontSize: 28 }}>ACTIVE</div>
                   </div>
                 </div>
               </div>
@@ -383,71 +350,65 @@ export async function GET(
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                marginTop: 20,
+                marginTop: 16,
                 marginBottom: 8,
               }}
             >
-              {/* Label row */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#666', fontSize: 10, letterSpacing: 2 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 12, letterSpacing: 2 }}>
                   REPUTATION
                 </div>
-                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#ccc', fontSize: 12 }}>
+                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 13 }}>
                   {score}/100
                 </div>
               </div>
-              {/* Progress bar container */}
               <div
                 style={{
                   display: 'flex',
                   width: '100%',
-                  height: 12,
-                  backgroundColor: 'rgba(255,255,255,0.05)',
-                  borderRadius: 6,
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  height: 8,
+                  backgroundColor: 'rgba(0,0,0,0.15)',
+                  borderRadius: 4,
+                  border: '1px solid rgba(0,0,0,0.1)',
                   overflow: 'hidden',
-                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.3)',
                 }}
               >
-                {/* Filled portion with RGB gradient */}
                 <div
                   style={{
                     display: 'flex',
-                    width: `${score}%`,
+                    width: `${Math.max(score, 2)}%`,
                     height: '100%',
-                    background: 'linear-gradient(90deg, rgba(255,50,150,0.9) 0%, rgba(150,50,255,0.9) 33%, rgba(50,150,255,0.9) 66%, rgba(0,255,200,0.9) 100%)',
-                    borderRadius: 5,
-                    boxShadow: '0 0 10px rgba(0,255,200,0.5), 0 0 20px rgba(150,50,255,0.3)',
+                    background: 'linear-gradient(90deg, #38b2ac 0%, #ed8936 100%)',
+                    borderRadius: 3,
                   }}
                 />
               </div>
             </div>
 
-            {/* MRZ Zone - lighter for contrast */}
+            {/* MRZ Zone */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                marginTop: 16,
-                padding: '14px 18px',
-                backgroundColor: 'rgba(255,255,255,0.08)',
-                borderTop: '1px solid rgba(255,255,255,0.15)',
-                boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
+                marginTop: 12,
+                padding: '12px 16px',
+                backgroundColor: 'rgba(255,255,255,0.5)',
+                borderTop: '1px solid rgba(0,0,0,0.2)',
               }}
             >
-              <div style={{ display: 'flex', fontFamily: 'SpaceMono', fontSize: 13, letterSpacing: 3, color: '#888' }}>{mrzLine1}</div>
-              <div style={{ display: 'flex', fontFamily: 'SpaceMono', fontSize: 13, letterSpacing: 3, color: '#888', marginTop: 2 }}>{mrzLine2}</div>
+              <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', fontSize: 13, letterSpacing: 2, color: '#000' }}>{mrzLine1}</div>
+              <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', fontSize: 13, letterSpacing: 2, color: '#000', marginTop: 2 }}>{mrzLine2}</div>
             </div>
 
             {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-              <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#555', fontSize: 9, letterSpacing: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+              <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 11, letterSpacing: 1 }}>
                 AUTONOMOUS AGENT REGISTRY
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', fontFamily: 'SpaceMono', color: '#555', fontSize: 9, marginRight: 12 }}>wildwestbots.com</div>
-                <div style={{ display: 'flex', padding: '3px 10px', backgroundColor: 'rgba(50,150,255,0.2)', border: '1px solid rgba(50,150,255,0.3)' }}>
-                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#5599ff', fontSize: 9 }}>BASE</div>
+                <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#000', fontSize: 11, marginRight: 12 }}>wildwestbots.com</div>
+                <div style={{ display: 'flex', padding: '3px 10px', backgroundColor: 'rgba(0,80,180,0.3)', border: '1px solid rgba(0,80,180,0.6)' }}>
+                  <div style={{ display: 'flex', fontFamily: 'SpaceMonoBold', color: '#002266', fontSize: 11 }}>BASE</div>
                 </div>
               </div>
             </div>
