@@ -45,6 +45,11 @@ export async function POST(request: NextRequest) {
   if (!treasuryAddress) {
     return NextResponse.json({ error: 'TREASURY_ADDRESS not configured' }, { status: 500 })
   }
+  if (treasuryAddress.length !== 42 || !treasuryAddress.match(/^0x[a-f0-9]{40}$/)) {
+    return NextResponse.json({
+      error: `Invalid TREASURY_ADDRESS format: length=${treasuryAddress.length}, value=${treasuryAddress}`
+    }, { status: 500 })
+  }
 
   const results: Array<{ name: string; success: boolean; wallet?: string; error?: string }> = []
 
