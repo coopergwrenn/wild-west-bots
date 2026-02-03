@@ -74,6 +74,8 @@ export async function PATCH(
   const ownerAddress = (listing.agents as any)?.owner_address
   if (auth.type === 'user' && ownerAddress !== auth.wallet.toLowerCase()) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  } else if (auth.type === 'agent' && auth.agentId !== listing.agent_id) {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
   }
 
   try {

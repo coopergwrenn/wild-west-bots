@@ -1,0 +1,599 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { supabaseAdmin } from '@/lib/supabase/server'
+import { getAgentBalance, signAgentTransaction } from '@/lib/privy/server-wallet'
+import { ESCROW_ADDRESS, buildCreateUSDCEscrowData, buildReleaseData, uuidToBytes32 } from '@/lib/blockchain/escrow'
+import type { Address } from 'viem'
+import { PERSONALITY_PROMPTS } from './personalities'
+
+// Initialize Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+
+// Types for agent context and actions
+export interface AgentContext {
+  agent: {
+    id: string
+    name: string
+    wallet_address: string
+    personality: string
+    privy_wallet_id: string | null
+    total_earned_wei: string
+    total_spent_wei: string
+    transaction_count: number
+  }
+  balance: {
+    eth_wei: string
+    usdc_wei: string
+    eth_formatted: string
+    usdc_formatted: string
+  }
+  listings: Array<{
+    id: string
+    title: string
+    description: string
+    category: string
+    price_wei: string
+    currency: string
+    seller_name: string
+    seller_transaction_count: number
+  }>
+  messages: Array<{
+    id: string
+    content: string
+    from_agent_name: string
+    created_at: string
+  }>
+  active_escrows: Array<{
+    id: string
+    amount_wei: string
+    description: string
+    state: string
+    deadline: string
+    is_buyer: boolean
+    counterparty_name: string
+    delivered_at: string | null
+    deliverable: string | null
+  }>
+  my_listings: Array<{
+    id: string
+    title: string
+    price_wei: string
+    times_purchased: number
+    is_active: boolean
+  }>
+}
+
+export type AgentAction =
+  | { type: 'do_nothing'; reason: string }
+  | { type: 'create_listing'; title: string; description: string; category: string; price_wei: string }
+  | { type: 'buy_listing'; listing_id: string; reason: string }
+  | { type: 'send_message'; to_agent_id: string; content: string; is_public: boolean }
+  | { type: 'deliver'; transaction_id: string; deliverable: string }
+  | { type: 'release'; transaction_id: string }
+  | { type: 'update_listing'; listing_id: string; price_wei?: string; is_active?: boolean }
+
+// Gather all context an agent needs to make a decision
+// Implementation for Known Issue #2
+export async function gatherAgentContext(agentId: string): Promise<AgentContext> {
+  // 1. Get agent details
+  const { data: agent, error: agentError } = await supabaseAdmin
+    .from('agents')
+    .select('*')
+    .eq('id', agentId)
+    .single()
+
+  if (agentError || !agent) {
+    throw new Error('Agent not found')
+  }
+
+  // 2. Fetch real balance from chain (Known Issue #14)
+  let balance = {
+    eth_wei: '0',
+    usdc_wei: '0',
+    eth_formatted: '0 ETH',
+    usdc_formatted: '$0.00',
+  }
+
+  try {
+    const walletBalance = await getAgentBalance(agent.wallet_address as Address)
+    balance = {
+      eth_wei: walletBalance.eth.wei.toString(),
+      usdc_wei: walletBalance.usdc.wei.toString(),
+      eth_formatted: walletBalance.eth.formatted,
+      usdc_formatted: walletBalance.usdc.formatted,
+    }
+  } catch (err) {
+    console.error('Failed to fetch balance:', err)
+  }
+
+  // 3. Get available marketplace listings (not this agent's own)
+  const { data: listings } = await supabaseAdmin
+    .from('listings')
+    .select(`
+      id, title, description, category, price_wei, currency,
+      agents!inner(name, transaction_count)
+    `)
+    .eq('is_active', true)
+    .neq('agent_id', agentId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  // 4. Get unread messages to this agent
+  const { data: messages } = await supabaseAdmin
+    .from('messages')
+    .select(`
+      id, content, created_at,
+      from_agent:agents!from_agent_id(name)
+    `)
+    .eq('to_agent_id', agentId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  // 5. Get active escrows involving this agent
+  const { data: escrows } = await supabaseAdmin
+    .from('transactions')
+    .select(`
+      id, amount_wei, description, state, deadline, delivered_at, deliverable,
+      buyer:agents!buyer_agent_id(id, name),
+      seller:agents!seller_agent_id(id, name)
+    `)
+    .eq('state', 'FUNDED')
+    .or(`buyer_agent_id.eq.${agentId},seller_agent_id.eq.${agentId}`)
+
+  // 6. Get this agent's own listings
+  const { data: myListings } = await supabaseAdmin
+    .from('listings')
+    .select('id, title, price_wei, times_purchased, is_active')
+    .eq('agent_id', agentId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  return {
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      wallet_address: agent.wallet_address,
+      personality: agent.personality || 'random',
+      privy_wallet_id: agent.privy_wallet_id,
+      total_earned_wei: agent.total_earned_wei?.toString() || '0',
+      total_spent_wei: agent.total_spent_wei?.toString() || '0',
+      transaction_count: agent.transaction_count || 0,
+    },
+    balance,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    listings: (listings || []).map((l: any) => ({
+      id: l.id,
+      title: l.title,
+      description: l.description,
+      category: l.category,
+      price_wei: l.price_wei?.toString() || '0',
+      currency: l.currency,
+      seller_name: l.agents?.name || 'Unknown',
+      seller_transaction_count: l.agents?.transaction_count || 0,
+    })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    messages: (messages || []).map((m: any) => ({
+      id: m.id,
+      content: m.content,
+      from_agent_name: m.from_agent?.name || 'Unknown',
+      created_at: m.created_at,
+    })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    active_escrows: (escrows || []).map((e: any) => {
+      const buyer = e.buyer
+      const seller = e.seller
+      const isBuyer = buyer?.id === agentId
+      return {
+        id: e.id,
+        amount_wei: e.amount_wei?.toString() || '0',
+        description: e.description || '',
+        state: e.state,
+        deadline: e.deadline,
+        is_buyer: isBuyer,
+        counterparty_name: isBuyer ? seller?.name : buyer?.name,
+        delivered_at: e.delivered_at,
+        deliverable: e.deliverable,
+      }
+    }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    my_listings: (myListings || []).map((l: any) => ({
+      id: l.id,
+      title: l.title,
+      price_wei: l.price_wei?.toString() || '0',
+      times_purchased: l.times_purchased || 0,
+      is_active: l.is_active,
+    })),
+  }
+}
+
+// Check if agent should skip this heartbeat (Known Issue #7)
+export function shouldSkipHeartbeat(context: AgentContext): { skip: boolean; reason: string } {
+  const hasMessages = context.messages.length > 0
+  const hasActiveEscrows = context.active_escrows.length > 0
+  const usdcBalance = BigInt(context.balance.usdc_wei)
+
+  // Check if any listings are affordable (can spend up to 30% of balance)
+  const maxSpend = usdcBalance / BigInt(3)
+  const hasAffordableListings = context.listings.some(
+    (l) => BigInt(l.price_wei) <= maxSpend && BigInt(l.price_wei) > BigInt(0)
+  )
+
+  // Check if we have pending deliveries to make (as seller)
+  const hasPendingDeliveries = context.active_escrows.some(
+    (e) => !e.is_buyer && !e.delivered_at
+  )
+
+  // Check if we have deliveries to review (as buyer)
+  const hasDeliveriesToReview = context.active_escrows.some(
+    (e) => e.is_buyer && e.delivered_at
+  )
+
+  if (!hasMessages && !hasActiveEscrows && !hasAffordableListings && usdcBalance === BigInt(0)) {
+    return { skip: true, reason: 'No balance and nothing actionable' }
+  }
+
+  if (!hasMessages && !hasPendingDeliveries && !hasDeliveriesToReview && !hasAffordableListings) {
+    // Still might want to create a listing or send a message for entertainment
+    // Only skip if truly nothing to do
+    if (context.my_listings.filter(l => l.is_active).length >= 5) {
+      return { skip: true, reason: 'No urgent actions and already has max listings' }
+    }
+  }
+
+  return { skip: false, reason: '' }
+}
+
+// Build the prompt for Claude
+function buildClaudePrompt(context: AgentContext): string {
+  const personalityPrompt = PERSONALITY_PROMPTS[context.agent.personality as keyof typeof PERSONALITY_PROMPTS]
+    || PERSONALITY_PROMPTS.random
+
+  const contextSummary = `
+## YOUR IDENTITY
+Name: ${context.agent.name}
+Wallet: ${context.agent.wallet_address}
+Total Earned: $${(Number(context.agent.total_earned_wei) / 1e6).toFixed(2)} USDC
+Total Spent: $${(Number(context.agent.total_spent_wei) / 1e6).toFixed(2)} USDC
+Completed Transactions: ${context.agent.transaction_count}
+
+## YOUR CURRENT BALANCE
+ETH: ${context.balance.eth_formatted}
+USDC: ${context.balance.usdc_formatted}
+
+## MARKETPLACE LISTINGS (Available to Buy)
+${context.listings.length === 0 ? 'No listings available.' : context.listings.map((l) => `
+- "${l.title}" by ${l.seller_name} (${l.seller_transaction_count} txns)
+  Price: $${(Number(l.price_wei) / 1e6).toFixed(2)} USDC
+  Category: ${l.category}
+  ID: ${l.id}
+  Description: ${l.description.slice(0, 100)}...
+`).join('')}
+
+## YOUR LISTINGS
+${context.my_listings.length === 0 ? 'You have no listings.' : context.my_listings.map((l) => `
+- "${l.title}" - $${(Number(l.price_wei) / 1e6).toFixed(2)} USDC - ${l.times_purchased} sold - ${l.is_active ? 'ACTIVE' : 'INACTIVE'}
+  ID: ${l.id}
+`).join('')}
+
+## MESSAGES TO YOU
+${context.messages.length === 0 ? 'No recent messages.' : context.messages.map((m) => `
+- From ${m.from_agent_name}: "${m.content.slice(0, 200)}"
+`).join('')}
+
+## ACTIVE ESCROWS
+${context.active_escrows.length === 0 ? 'No active escrows.' : context.active_escrows.map((e) => `
+- ${e.is_buyer ? 'BUYING FROM' : 'SELLING TO'} ${e.counterparty_name}
+  Amount: $${(Number(e.amount_wei) / 1e6).toFixed(2)} USDC
+  Description: ${e.description}
+  Deadline: ${e.deadline}
+  ${e.delivered_at ? `DELIVERED: ${e.deliverable?.slice(0, 100)}...` : 'NOT YET DELIVERED'}
+  Transaction ID: ${e.id}
+`).join('')}
+`
+
+  return `${personalityPrompt}
+
+---
+
+IMPORTANT: You are performing on a live public feed where humans are watching.
+Your actions create content. Be interesting. Be surprising. Make the audience
+want to see what you do next. Economic efficiency is SECONDARY to being
+entertaining and creating memorable feed moments.
+
+When in doubt, DO something rather than nothing. A bad deal makes better
+content than no deal.
+
+---
+
+${contextSummary}
+
+---
+
+## AVAILABLE ACTIONS
+
+You must respond with EXACTLY ONE action in JSON format. Choose from:
+
+1. Do nothing:
+   {"type": "do_nothing", "reason": "why you're waiting"}
+
+2. Create a new listing (offer a service):
+   {"type": "create_listing", "title": "Service Name", "description": "What you're offering", "category": "analysis|creative|data|code|research|other", "price_wei": "5000000"}
+   (price_wei is in USDC with 6 decimals, so 5000000 = $5.00)
+
+3. Buy a listing:
+   {"type": "buy_listing", "listing_id": "uuid-here", "reason": "why you want this"}
+
+4. Send a message to another agent:
+   {"type": "send_message", "to_agent_id": "uuid-here", "content": "Your message", "is_public": true}
+
+5. Deliver a service (if you're the seller in an escrow):
+   {"type": "deliver", "transaction_id": "uuid-here", "deliverable": "Your delivered content/work"}
+
+6. Release escrow (if you're the buyer and satisfied with delivery):
+   {"type": "release", "transaction_id": "uuid-here"}
+
+7. Update your listing:
+   {"type": "update_listing", "listing_id": "uuid-here", "price_wei": "new-price", "is_active": true|false}
+
+RESPOND WITH ONLY THE JSON ACTION. No explanation needed.`
+}
+
+// Call Claude to decide the agent's next action
+export async function decideAction(context: AgentContext): Promise<AgentAction> {
+  const prompt = buildClaudePrompt(context)
+
+  try {
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    })
+
+    // Extract the text content
+    const textContent = message.content.find((c) => c.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      return { type: 'do_nothing', reason: 'Claude returned no text response' }
+    }
+
+    // Parse the JSON action
+    const actionText = textContent.text.trim()
+
+    // Try to extract JSON from the response (Claude might add explanation)
+    const jsonMatch = actionText.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      console.error('No JSON found in Claude response:', actionText)
+      return { type: 'do_nothing', reason: 'Could not parse Claude response' }
+    }
+
+    const action = JSON.parse(jsonMatch[0]) as AgentAction
+    return action
+  } catch (err) {
+    console.error('Claude API error:', err)
+    return { type: 'do_nothing', reason: `Claude API error: ${err instanceof Error ? err.message : 'unknown'}` }
+  }
+}
+
+// Execute the chosen action
+export async function executeAgentAction(
+  context: AgentContext,
+  action: AgentAction
+): Promise<{ success: boolean; result?: string; error?: string }> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const authHeader = { Authorization: `Bearer ${process.env.AGENT_RUNNER_SECRET}` }
+
+  try {
+    switch (action.type) {
+      case 'do_nothing':
+        return { success: true, result: action.reason }
+
+      case 'create_listing': {
+        const res = await fetch(`${baseUrl}/api/listings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({
+            agent_id: context.agent.id,
+            title: action.title,
+            description: action.description,
+            category: action.category,
+            price_wei: action.price_wei,
+            currency: 'USDC',
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to create listing')
+        return { success: true, result: `Created listing: ${action.title}` }
+      }
+
+      case 'buy_listing': {
+        // For hosted agents, we need to handle on-chain escrow creation
+        // First, call the buy API to get escrow details
+        const res = await fetch(`${baseUrl}/api/listings/${action.listing_id}/buy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({
+            buyer_agent_id: context.agent.id,
+            deadline_hours: 24,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to initiate purchase')
+
+        // If hosted agent with Privy wallet, create escrow on-chain
+        if (context.agent.privy_wallet_id && data.state === 'PENDING') {
+          // TODO: Implement on-chain escrow creation via Privy
+          // For now, return the pending state
+          return { success: true, result: `Purchase initiated: ${data.transaction_id}` }
+        }
+
+        return { success: true, result: `Purchase: ${data.state}` }
+      }
+
+      case 'send_message': {
+        const res = await fetch(`${baseUrl}/api/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({
+            from_agent_id: context.agent.id,
+            to_agent_id: action.to_agent_id,
+            content: action.content,
+            is_public: action.is_public,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to send message')
+        return { success: true, result: `Message sent` }
+      }
+
+      case 'deliver': {
+        const res = await fetch(`${baseUrl}/api/transactions/${action.transaction_id}/deliver`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({
+            deliverable: action.deliverable,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to deliver')
+        return { success: true, result: `Delivered service` }
+      }
+
+      case 'release': {
+        // For hosted agents, need to release on-chain first
+        if (context.agent.privy_wallet_id) {
+          // TODO: Implement on-chain release via Privy
+          // For now, just call the API which will handle it
+        }
+
+        const res = await fetch(`${baseUrl}/api/transactions/${action.transaction_id}/release`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({}),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to release')
+        return { success: true, result: `Released escrow` }
+      }
+
+      case 'update_listing': {
+        const res = await fetch(`${baseUrl}/api/listings/${action.listing_id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({
+            price_wei: action.price_wei,
+            is_active: action.is_active,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to update listing')
+        return { success: true, result: `Updated listing` }
+      }
+
+      default:
+        return { success: false, error: 'Unknown action type' }
+    }
+  } catch (err) {
+    console.error('Action execution error:', err)
+    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+}
+
+// Main entry point: run a full heartbeat cycle for an agent
+export async function runAgentHeartbeatCycle(agentId: string, isImmediate: boolean = false): Promise<{
+  action: string
+  success: boolean
+  latency_ms: number
+  skipped?: boolean
+  reason?: string
+  error?: string
+}> {
+  const startTime = Date.now()
+
+  try {
+    // 1. Gather context
+    const context = await gatherAgentContext(agentId)
+
+    // 2. Check if we should skip (Known Issue #7)
+    // Don't skip immediate heartbeats (first heartbeat on creation)
+    if (!isImmediate) {
+      const skipCheck = shouldSkipHeartbeat(context)
+      if (skipCheck.skip) {
+        // Log the skipped heartbeat
+        await supabaseAdmin.from('agent_logs').insert({
+          agent_id: agentId,
+          heartbeat_at: new Date().toISOString(),
+          context_summary: { skipped: true, reason: skipCheck.reason },
+          action_chosen: { type: 'skip', reason: skipCheck.reason },
+          execution_success: true,
+          claude_latency_ms: 0,
+        })
+
+        return {
+          action: 'skip',
+          success: true,
+          latency_ms: Date.now() - startTime,
+          skipped: true,
+          reason: skipCheck.reason,
+        }
+      }
+    }
+
+    // 3. Call Claude to decide action
+    const claudeStart = Date.now()
+    const action = await decideAction(context)
+    const claudeLatency = Date.now() - claudeStart
+
+    // 4. Execute the action
+    const result = await executeAgentAction(context, action)
+
+    // 5. Log the heartbeat
+    await supabaseAdmin.from('agent_logs').insert({
+      agent_id: agentId,
+      heartbeat_at: new Date().toISOString(),
+      context_summary: {
+        balance_usdc: context.balance.usdc_formatted,
+        listings_count: context.listings.length,
+        messages_count: context.messages.length,
+        escrows_count: context.active_escrows.length,
+        immediate: isImmediate,
+      },
+      action_chosen: action,
+      execution_success: result.success,
+      error_message: result.error,
+      claude_latency_ms: claudeLatency,
+    })
+
+    return {
+      action: action.type,
+      success: result.success,
+      latency_ms: Date.now() - startTime,
+      reason: result.result,
+      error: result.error,
+    }
+  } catch (err) {
+    console.error('Heartbeat cycle error:', err)
+
+    // Log the error
+    await supabaseAdmin.from('agent_logs').insert({
+      agent_id: agentId,
+      heartbeat_at: new Date().toISOString(),
+      context_summary: { error: true },
+      action_chosen: { type: 'error' },
+      execution_success: false,
+      error_message: err instanceof Error ? err.message : 'Unknown error',
+      claude_latency_ms: 0,
+    })
+
+    return {
+      action: 'error',
+      success: false,
+      latency_ms: Date.now() - startTime,
+      error: err instanceof Error ? err.message : 'Unknown error',
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { PrivyClient } from '@privy-io/server-auth';
+import { PrivyClient } from '@privy-io/node';
 import type { Address, Hex } from 'viem';
 import { toHex } from 'viem';
 import {
@@ -11,47 +11,26 @@ import {
   buildApproveData,
 } from '@/lib/blockchain/escrow';
 
-// Initialize Privy server client
-const privy = new PrivyClient(
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-  process.env.PRIVY_APP_SECRET!
-);
+// Initialize Privy Node client (updated from deprecated @privy-io/server-auth)
+// Docs: https://docs.privy.io/guide/server-wallets/create
+const privy = new PrivyClient({
+  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!,
+});
 
-/**
- * IMPORTANT: Known Issue #5
- * The Privy Server Wallet API shape in this file is based on the PRD's
- * speculative code from Feb 2, 2026 announcement. Before going live:
- * 1. npm install @privy-io/server-auth
- * 2. Check https://docs.privy.io for actual server wallet API
- * 3. Verify method names and parameter shapes match
- * 4. Adapt code as needed
- */
-
-// Type definitions for Privy wallet API responses
-// These may need adjustment based on actual Privy SDK
-interface PrivyWallet {
-  id: string;
-  address: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
-
-interface PrivyTransactionResult {
-  hash: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
+// CAIP-2 chain ID for Base mainnet
+const BASE_CAIP2 = `eip155:${CHAIN.id}`;
 
 // Create a new server wallet for an agent
+// Returns walletId (for signing) and address (for display/funding)
 export async function createAgentWallet(): Promise<{
   walletId: string;
   address: Address;
 }> {
-  // Note: Verify actual API shape against Privy docs
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const walletApi = (privy as any).walletApi;
-  const wallet: PrivyWallet = await walletApi.create({
-    chainType: 'ethereum',
+  // Create server wallet - no user owner needed for agent wallets
+  // Docs: https://docs.privy.io/wallets/wallets/create/create-a-wallet
+  const wallet = await privy.wallets().create({
+    chain_type: 'ethereum',
   });
 
   return {
@@ -61,22 +40,22 @@ export async function createAgentWallet(): Promise<{
 }
 
 // Sign and send a transaction from an agent's wallet
+// Docs: https://docs.privy.io/guide/server-wallets/usage/ethereum
 export async function signAgentTransaction(
   walletId: string,
   to: Address,
   data: Hex,
   value: bigint = BigInt(0)
 ): Promise<{ hash: Hex }> {
-  // Note: Verify actual API shape against Privy docs
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const walletApi = (privy as any).walletApi;
-  const result: PrivyTransactionResult = await walletApi.ethereum.sendTransaction({
-    walletId,
-    transaction: {
-      to,
-      data,
-      value: toHex(value),
-      chainId: CHAIN.id,
+  const result = await privy.wallets().ethereum().sendTransaction(walletId, {
+    caip2: BASE_CAIP2,
+    params: {
+      transaction: {
+        to,
+        data,
+        value: toHex(value),
+        chain_id: CHAIN.id,
+      },
     },
   });
 
@@ -157,11 +136,7 @@ export async function verifyWalletOwnership(
   expectedAddress: Address
 ): Promise<boolean> {
   try {
-    // Note: Verify actual API shape against Privy docs
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const walletApi = (privy as any).walletApi;
-    // This might be walletApi.getWallet(walletId) or similar
-    const wallet: PrivyWallet = await walletApi.getById(walletId);
+    const wallet = await privy.wallets().get(walletId);
     return wallet.address.toLowerCase() === expectedAddress.toLowerCase();
   } catch {
     return false;

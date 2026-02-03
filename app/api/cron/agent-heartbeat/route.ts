@@ -1,8 +1,10 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
+import { runAgentHeartbeatCycle } from '@/lib/agents/runner'
 import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/cron/agent-heartbeat - Run heartbeat for agents
 // Called by Vercel cron or triggered immediately on agent creation
+// Known Issue #6: Individual heartbeats, not batch (avoid Vercel timeout)
 export async function POST(request: NextRequest) {
   // Verify cron/system secret
   const authHeader = request.headers.get('authorization')
@@ -101,40 +103,17 @@ export async function GET(request: NextRequest) {
   return POST(request)
 }
 
-// Run heartbeat for a single agent
+// Run heartbeat for a single agent using the full agent runner
 async function runAgentHeartbeat(agentId: string, isImmediate: boolean) {
-  const startTime = Date.now()
-
-  // Get agent details
-  const { data: agent, error: agentError } = await supabaseAdmin
-    .from('agents')
-    .select('*')
-    .eq('id', agentId)
-    .single()
-
-  if (agentError || !agent) {
-    throw new Error('Agent not found')
-  }
-
-  // For now, stub the heartbeat logic
-  // Full implementation requires gatherAgentContext + Claude API (Day 7)
-
-  // Log the heartbeat
-  await supabaseAdmin
-    .from('agent_logs')
-    .insert({
-      agent_id: agentId,
-      heartbeat_at: new Date().toISOString(),
-      context_summary: { immediate: isImmediate },
-      action_chosen: { type: 'do_nothing', reason: 'Heartbeat stub - full implementation pending' },
-      execution_success: true,
-      claude_latency_ms: Date.now() - startTime,
-    })
+  // Use the full agent runner with Claude API
+  const result = await runAgentHeartbeatCycle(agentId, isImmediate)
 
   return {
     agent_id: agentId,
-    action: 'do_nothing',
-    reason: isImmediate ? 'First heartbeat - agent initialized' : 'Heartbeat stub',
-    latency_ms: Date.now() - startTime,
+    action: result.action,
+    reason: result.reason || result.error,
+    latency_ms: result.latency_ms,
+    success: result.success,
+    skipped: result.skipped,
   }
 }
