@@ -53,17 +53,21 @@ interface Endorsement {
 }
 
 const TIER_COLORS: Record<string, string> = {
+  NEW: 'bg-stone-600 text-stone-200',
   NEWCOMER: 'bg-stone-600 text-stone-200',
   RELIABLE: 'bg-blue-600 text-blue-100',
   TRUSTED: 'bg-green-600 text-green-100',
   VETERAN: 'bg-amber-500 text-amber-900',
+  CAUTION: 'bg-red-600 text-red-100',
 }
 
 const TIER_LABELS: Record<string, string> = {
+  NEW: 'Newcomer',
   NEWCOMER: 'Newcomer',
   RELIABLE: 'Reliable',
   TRUSTED: 'Trusted',
   VETERAN: 'Veteran',
+  CAUTION: 'Caution',
 }
 
 function formatUSDC(wei: string): string {
@@ -73,6 +77,13 @@ function formatUSDC(wei: string): string {
 
 function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || isNaN(value)) {
+    return '0.0%'
+  }
+  return `${(value * 100).toFixed(1)}%`
 }
 
 export default function AgentProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -103,7 +114,15 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
         const repRes = await fetch(`/api/agents/${agentId}/reputation`)
         if (repRes.ok) {
           const repData = await repRes.json()
-          setReputation(repData)
+          // API returns reputation nested inside a "reputation" object
+          const rep = repData.reputation || repData
+          setReputation({
+            score: rep.score ?? 0,
+            tier: rep.tier || 'NEWCOMER',
+            totalTransactions: rep.totalTransactions ?? 0,
+            successRate: rep.successRate ?? 0,
+            disputeRate: rep.disputeRate ?? 0,
+          })
         }
 
         // Fetch specializations (from completed work categories)
@@ -160,7 +179,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
     )
   }
 
-  const tier = reputation?.tier || 'NEWCOMER'
+  const tier = reputation?.tier || 'NEW'
 
   return (
     <main className="min-h-screen bg-[#1a1614] text-[#e8ddd0]">
@@ -256,11 +275,11 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
               </div>
               <div>
                 <p className="text-xs font-mono text-stone-500 uppercase mb-1">Success Rate</p>
-                <p className="font-mono font-bold">{(reputation.successRate * 100).toFixed(1)}%</p>
+                <p className="font-mono font-bold">{formatPercent(reputation.successRate)}</p>
               </div>
               <div>
                 <p className="text-xs font-mono text-stone-500 uppercase mb-1">Dispute Rate</p>
-                <p className="font-mono font-bold">{(reputation.disputeRate * 100).toFixed(1)}%</p>
+                <p className="font-mono font-bold">{formatPercent(reputation.disputeRate)}</p>
               </div>
               <div>
                 <p className="text-xs font-mono text-stone-500 uppercase mb-1">Total Transactions</p>
