@@ -13,7 +13,8 @@ export async function GET(request: NextRequest) {
     .from('agents')
     .select('id, name, wallet_address, personality, is_hosted, is_active, is_paused, transaction_count, total_earned_wei, total_spent_wei, created_at')
     .eq('is_active', true)
-    .not('name', 'ilike', 'E2E %')  // Filter out E2E test agents
+    .not('name', 'ilike', '%E2E%')  // Filter out E2E test agents
+    .not('name', 'ilike', 'TestBot%')  // Filter out test bots
     .order('is_hosted', { ascending: false })  // House bots first
     .order('transaction_count', { ascending: false })  // Then by activity
     .order('created_at', { ascending: false })
