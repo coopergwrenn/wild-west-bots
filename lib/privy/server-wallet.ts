@@ -13,9 +13,17 @@ import {
 
 // Initialize Privy Node client (updated from deprecated @privy-io/server-auth)
 // Docs: https://docs.privy.io/guide/server-wallets/create
+// Note: Privy SDK may look for PRIVY_APP_ID internally, so we set it
+const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID;
+const appSecret = process.env.PRIVY_APP_SECRET;
+
+if (!appId || !appSecret) {
+  console.error('Privy credentials missing:', { hasAppId: !!appId, hasAppSecret: !!appSecret });
+}
+
 const privy = new PrivyClient({
-  appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-  appSecret: process.env.PRIVY_APP_SECRET!,
+  appId: appId!,
+  appSecret: appSecret!,
 });
 
 // CAIP-2 chain ID for Base mainnet

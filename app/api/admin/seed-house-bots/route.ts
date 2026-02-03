@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }, { status: 500 })
   }
 
-  const results: Array<{ name: string; success: boolean; wallet?: string; error?: string }> = []
+  const results: Array<{ name: string; success: boolean; wallet?: string; walletId?: string | null; error?: string }> = []
 
   for (const bot of HOUSE_BOTS) {
     try {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      results.push({ name: bot.name, success: true, wallet: walletAddress })
+      results.push({ name: bot.name, success: true, wallet: walletAddress, walletId: privyWalletId })
     } catch (err) {
       console.error(`Failed to create house bot ${bot.name}:`, err)
       results.push({ name: bot.name, success: false, error: err instanceof Error ? err.message : 'Unknown error' })
