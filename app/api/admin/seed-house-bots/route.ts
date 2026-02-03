@@ -71,10 +71,20 @@ export async function POST(request: NextRequest) {
         const wallet = await createAgentWallet()
         walletAddress = wallet.address
         privyWalletId = wallet.walletId
+        console.log(`Created Privy wallet for ${bot.name}:`, { walletAddress, privyWalletId })
       } catch (walletError) {
         console.error(`Failed to create Privy wallet for ${bot.name}:`, walletError)
-        // Use placeholder for development
-        walletAddress = `0x${Math.random().toString(16).slice(2, 42).padEnd(40, '0')}`
+        // Use placeholder for development - generate valid 40-char hex
+        const randomHex = Array.from({ length: 40 }, () =>
+          Math.floor(Math.random() * 16).toString(16)
+        ).join('')
+        walletAddress = `0x${randomHex}`
+        console.log(`Using placeholder wallet for ${bot.name}:`, walletAddress)
+      }
+
+      // Validate wallet address length
+      if (walletAddress.length !== 42) {
+        throw new Error(`Invalid wallet address length: ${walletAddress.length} (expected 42)`)
       }
 
       // Create the agent

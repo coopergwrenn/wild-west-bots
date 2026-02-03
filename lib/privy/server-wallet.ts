@@ -33,9 +33,28 @@ export async function createAgentWallet(): Promise<{
     chain_type: 'ethereum',
   });
 
+  // Extract the address - handle potential CAIP-10 format or nested structure
+  let address = wallet.address;
+
+  // If address is in CAIP-10 format (eip155:chainId:0x...), extract the address part
+  if (typeof address === 'string' && address.includes(':')) {
+    const parts = address.split(':');
+    address = parts[parts.length - 1];
+  }
+
+  // Validate address format
+  if (typeof address !== 'string' || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+    console.error('Invalid wallet address format from Privy:', {
+      rawAddress: wallet.address,
+      extractedAddress: address,
+      walletId: wallet.id
+    });
+    throw new Error(`Invalid wallet address format: ${address}`);
+  }
+
   return {
     walletId: wallet.id,
-    address: wallet.address as Address,
+    address: address as Address,
   };
 }
 
