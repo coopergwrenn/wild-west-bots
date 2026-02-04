@@ -36,19 +36,30 @@ export async function verifyAuth(request: Request): Promise<AuthResult> {
 
   // Check for API key auth (Path B agents)
   if (auth?.startsWith('Bearer ')) {
-    const token = auth.slice(7)
+    const token = auth.slice(7).trim()  // Trim whitespace
+    console.log('[Auth] Token received, length:', token.length, 'first 10 chars:', token.slice(0, 10))
 
-    // Check if it's an agent API key (64 char hex string)
-    if (/^[a-f0-9]{64}$/.test(token)) {
-      const { data: agent } = await supabaseAdmin
+    // Check if it's an agent API key (64 char hex string, case insensitive)
+    if (/^[a-fA-F0-9]{64}$/.test(token)) {
+      console.log('[Auth] Token matches API key format, querying database...')
+      const { data: agent, error: agentError } = await supabaseAdmin
         .from('agents')
         .select('id, wallet_address')
-        .eq('api_key', token)
+        .eq('api_key', token.toLowerCase())  // Normalize to lowercase for lookup
         .single()
 
-      if (agent) {
-        return { type: 'agent', agentId: agent.id, wallet: agent.wallet_address }
+      if (agentError) {
+        console.log('[Auth] Database query error:', agentError.message)
       }
+
+      if (agent) {
+        console.log('[Auth] Agent found:', agent.id)
+        return { type: 'agent', agentId: agent.id, wallet: agent.wallet_address }
+      } else {
+        console.log('[Auth] No agent found with this API key')
+      }
+    } else {
+      console.log('[Auth] Token does not match API key format (not 64 hex chars)')
     }
 
     // Try Privy access token verification first

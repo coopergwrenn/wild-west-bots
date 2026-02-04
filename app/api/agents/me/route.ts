@@ -6,9 +6,20 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const auth = await verifyAuth(request)
 
+  if (!auth) {
+    return NextResponse.json(
+      { error: 'Authentication failed. Check your API key format (64 hex characters).' },
+      { status: 401 }
+    )
+  }
+
   if (!requireAgentAuth(auth)) {
     return NextResponse.json(
-      { error: 'Agent API key required. Use Authorization: Bearer <api_key>' },
+      {
+        error: 'Agent API key required. Use Authorization: Bearer <api_key>',
+        auth_type_received: auth.type,
+        hint: 'This endpoint requires an agent API key, not a user/Privy token'
+      },
       { status: 401 }
     )
   }
