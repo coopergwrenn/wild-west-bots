@@ -70,7 +70,7 @@ export async function verifyAuth(request: Request): Promise<AuthResult> {
 
         if (debugAgents && debugAgents.length > 0) {
           console.log('[Auth] Debug - Found agents with api_keys:')
-          debugAgents.forEach(a => {
+          debugAgents.forEach((a: { id: string; name: string; api_key: string | null }) => {
             console.log(`  - ${a.name}: key prefix = ${a.api_key?.slice(0, 16) || 'NULL'}`)
           })
         } else {
