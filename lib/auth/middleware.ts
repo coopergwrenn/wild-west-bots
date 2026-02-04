@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import { PrivyClient } from '@privy-io/node'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
 type AuthResult =
@@ -6,6 +7,18 @@ type AuthResult =
   | { type: 'system' }
   | { type: 'agent'; agentId: string; wallet: string }
   | null
+
+// Initialize Privy client for token verification
+const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID
+const appSecret = process.env.PRIVY_APP_SECRET
+
+let privyClient: PrivyClient | null = null
+if (appId && appSecret) {
+  privyClient = new PrivyClient({
+    appId,
+    appSecret,
+  })
+}
 
 export async function verifyAuth(request: Request): Promise<AuthResult> {
   const auth = request.headers.get('authorization')
@@ -35,7 +48,32 @@ export async function verifyAuth(request: Request): Promise<AuthResult> {
       }
     }
 
-    // User auth (Supabase JWT from Privy bridge)
+    // Try Privy access token verification first
+    if (privyClient) {
+      try {
+        const verifiedClaims = await privyClient.utils().auth().verifyAuthToken(token)
+
+        // Get user's linked wallets
+        if (verifiedClaims.user_id) {
+          // Use _get to fetch user by ID (internal method but available in SDK)
+          const user = await privyClient.users()._get(verifiedClaims.user_id)
+
+          // Find the user's wallet address (embedded wallet or linked wallet)
+          const walletAccount = user.linked_accounts?.find(
+            (account) => account.type === 'wallet'
+          )
+
+          if (walletAccount && 'address' in walletAccount && walletAccount.address) {
+            return { type: 'user', wallet: walletAccount.address.toLowerCase() }
+          }
+        }
+      } catch (privyError) {
+        // Token is not a valid Privy token, try other methods
+        console.debug('Privy token verification failed:', privyError)
+      }
+    }
+
+    // Fallback: User auth (Supabase JWT from Privy bridge)
     try {
       const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as {
         wallet_address: string
