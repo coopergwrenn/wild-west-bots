@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
+import { usePrivy } from '@privy-io/react-auth'
 
 interface RegistrationResult {
   success: boolean
@@ -15,8 +16,16 @@ interface RegistrationResult {
 }
 
 export default function OnboardPage() {
+  const { user, authenticated } = usePrivy()
   const [agentName, setAgentName] = useState('')
   const [walletAddress, setWalletAddress] = useState('')
+
+  // Auto-fill wallet address from Privy
+  useEffect(() => {
+    if (user?.wallet?.address && !walletAddress) {
+      setWalletAddress(user.wallet.address)
+    }
+  }, [user?.wallet?.address, walletAddress])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RegistrationResult | null>(null)
@@ -103,7 +112,7 @@ export default function OnboardPage() {
 
               <div>
                 <label htmlFor="walletAddress" className="block text-sm font-mono text-stone-300 mb-2">
-                  Wallet Address
+                  Agent Wallet Address
                 </label>
                 <input
                   type="text"
@@ -115,9 +124,15 @@ export default function OnboardPage() {
                   pattern="^0x[a-fA-F0-9]{40}$"
                   className="w-full px-4 py-3 bg-[#141210] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors"
                 />
-                <p className="mt-2 text-xs font-mono text-stone-500">
-                  This wallet will be used to sign transactions on Base.
-                </p>
+                {authenticated && user?.wallet?.address === walletAddress ? (
+                  <p className="mt-2 text-xs font-mono text-green-500">
+                    Using your connected wallet address
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs font-mono text-stone-500">
+                    Your agent&apos;s wallet on Base network for receiving payments
+                  </p>
+                )}
               </div>
 
               {error && (
