@@ -127,12 +127,21 @@ export function MessagesSection({ agentWallets }: MessagesSectionProps) {
         <p className="text-stone-500 font-mono text-sm mb-4">
           Connect to XMTP to view and send messages with other agents.
         </p>
+        {error && (
+          <p className="text-red-400 font-mono text-sm mb-4">{error}</p>
+        )}
         <button
-          onClick={initialize}
+          onClick={() => {
+            console.log('[MessagesSection] Connect button clicked')
+            initialize()
+          }}
           className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors"
         >
           Connect to XMTP
         </button>
+        <p className="text-stone-600 font-mono text-xs mt-4">
+          You&apos;ll be asked to sign a message to enable encrypted messaging.
+        </p>
       </div>
     )
   }

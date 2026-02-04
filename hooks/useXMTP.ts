@@ -38,13 +38,35 @@ export function useXMTP(): UseXMTPReturn {
   const initializingRef = useRef(false)
 
   const initialize = useCallback(async () => {
-    if (!ready || !authenticated || initializingRef.current || client) return
+    console.log('[XMTP] Initialize called', { ready, authenticated, wallets: wallets.length, hasClient: !!client })
 
-    const embeddedWallet = wallets.find(w => w.walletClientType === 'privy')
-    if (!embeddedWallet) {
-      setError('No wallet available')
+    if (!ready || !authenticated) {
+      console.log('[XMTP] Not ready or not authenticated')
+      setError('Please connect your wallet first')
       return
     }
+
+    if (initializingRef.current) {
+      console.log('[XMTP] Already initializing')
+      return
+    }
+
+    if (client) {
+      console.log('[XMTP] Already have client')
+      return
+    }
+
+    // Try to find any available wallet - prefer Privy embedded, but accept external
+    console.log('[XMTP] Available wallets:', wallets.map(w => ({ type: w.walletClientType, address: w.address })))
+
+    const wallet = wallets.find(w => w.walletClientType === 'privy') || wallets[0]
+    if (!wallet) {
+      console.log('[XMTP] No wallet found')
+      setError('No wallet available. Please connect a wallet.')
+      return
+    }
+
+    console.log('[XMTP] Using wallet:', wallet.walletClientType, wallet.address)
 
     initializingRef.current = true
     setIsLoading(true)
@@ -53,34 +75,41 @@ export function useXMTP(): UseXMTPReturn {
     try {
       // Dynamic import to avoid SSR issues
       const { Client } = await import('@xmtp/xmtp-js')
+      console.log('[XMTP] Client imported')
 
-      // Get ethereum provider from Privy wallet
-      const provider = await embeddedWallet.getEthereumProvider()
+      // Get ethereum provider from wallet
+      const provider = await wallet.getEthereumProvider()
+      console.log('[XMTP] Got provider')
 
       // Create a signer compatible with XMTP
       const signer = {
-        getAddress: async () => embeddedWallet.address,
+        getAddress: async () => wallet.address,
         signMessage: async (message: string) => {
+          console.log('[XMTP] Requesting signature...')
           // Use the provider to sign
           const signature = await provider.request({
             method: 'personal_sign',
-            params: [message, embeddedWallet.address],
+            params: [message, wallet.address],
           })
+          console.log('[XMTP] Got signature')
           return signature as string
         },
       }
 
-      // Create XMTP client
+      // Create XMTP client - this will prompt for signature
+      console.log('[XMTP] Creating XMTP client...')
       const xmtpClient = await Client.create(signer, { env: XMTP_ENV })
+      console.log('[XMTP] Client created')
       setClient(xmtpClient)
 
       // Load existing conversations
       const convos = await xmtpClient.conversations.list()
+      console.log('[XMTP] Loaded', convos.length, 'conversations')
       setConversations(convos)
 
       setIsInitialized(true)
     } catch (err) {
-      console.error('XMTP initialization error:', err)
+      console.error('[XMTP] Initialization error:', err)
       setError(err instanceof Error ? err.message : 'Failed to initialize XMTP')
     } finally {
       setIsLoading(false)
@@ -157,16 +186,8 @@ export function useXMTP(): UseXMTPReturn {
     }
   }, [client])
 
-  // Auto-initialize when wallet is ready
-  useEffect(() => {
-    if (ready && authenticated && wallets.length > 0 && !client && !initializingRef.current) {
-      // Small delay to ensure wallet is fully loaded
-      const timer = setTimeout(() => {
-        initialize()
-      }, 500)
-      return () => clearTimeout(timer)
-    }
-  }, [ready, authenticated, wallets, client, initialize])
+  // Removed auto-initialize - users must explicitly click "Connect to XMTP"
+  // This avoids unexpected signature prompts and makes the flow clearer
 
   return {
     client,
