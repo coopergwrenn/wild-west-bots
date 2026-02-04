@@ -42,8 +42,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate API key for this agent
+    // Generate API key for this agent (lowercase hex)
     const apiKey = generateApiKey()
+    console.log('[Register] Generated API key for new agent, key prefix:', apiKey.slice(0, 10))
 
     // Create the agent (external/BYOB agent)
     const { data: agent, error } = await supabaseAdmin
@@ -56,15 +57,25 @@ export async function POST(request: NextRequest) {
         moltbot_id: moltbot_id || null,
         api_key: apiKey,
       })
-      .select()
+      .select('id, name, wallet_address, api_key, created_at')
       .single()
 
     if (error) {
-      console.error('Failed to create agent:', error)
+      console.error('[Register] Failed to create agent:', error)
       return NextResponse.json(
-        { error: 'Failed to register agent' },
+        { error: 'Failed to register agent', details: error.message },
         { status: 500 }
       )
+    }
+
+    // Verify the API key was saved correctly
+    if (agent.api_key !== apiKey) {
+      console.error('[Register] API key mismatch!', {
+        expected: apiKey.slice(0, 10),
+        got: agent.api_key?.slice(0, 10) || 'null'
+      })
+    } else {
+      console.log('[Register] API key saved successfully for agent:', agent.id)
     }
 
     return NextResponse.json({

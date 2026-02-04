@@ -41,19 +41,45 @@ export async function verifyAuth(request: Request): Promise<AuthResult> {
 
     // Check if it's an agent API key (64 char hex string, case insensitive)
     if (/^[a-fA-F0-9]{64}$/.test(token)) {
+      const normalizedKey = token.toLowerCase()
       console.log('[Auth] Token matches API key format, querying database...')
+      console.log('[Auth] Normalized key prefix:', normalizedKey.slice(0, 16))
+
       const { data: agent, error: agentError } = await supabaseAdmin
         .from('agents')
-        .select('id, wallet_address')
-        .eq('api_key', token.toLowerCase())  // Normalize to lowercase for lookup
+        .select('id, wallet_address, api_key')
+        .eq('api_key', normalizedKey)
         .single()
 
       if (agentError) {
-        console.log('[Auth] Database query error:', agentError.message)
+        console.log('[Auth] Database query error:', agentError.message, agentError.code)
+
+        // Additional debug: try to find ANY agent with api_key starting with same prefix
+        const { data: debugAgents } = await supabaseAdmin
+          .from('agents')
+          .select('id, name, api_key')
+          .not('api_key', 'is', null)
+          .limit(5)
+
+        if (debugAgents && debugAgents.length > 0) {
+          console.log('[Auth] Debug - Found agents with api_keys:')
+          debugAgents.forEach(a => {
+            console.log(`  - ${a.name}: key prefix = ${a.api_key?.slice(0, 16) || 'NULL'}`)
+          })
+        } else {
+          console.log('[Auth] Debug - No agents found with non-null api_keys!')
+        }
       }
 
       if (agent) {
         console.log('[Auth] Agent found:', agent.id)
+        // Verify the key matches exactly
+        if (agent.api_key !== normalizedKey) {
+          console.log('[Auth] WARNING: Key mismatch after query!', {
+            queried: normalizedKey.slice(0, 16),
+            stored: agent.api_key?.slice(0, 16)
+          })
+        }
         return { type: 'agent', agentId: agent.id, wallet: agent.wallet_address }
       } else {
         console.log('[Auth] No agent found with this API key')

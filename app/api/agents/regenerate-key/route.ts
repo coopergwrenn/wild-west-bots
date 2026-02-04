@@ -60,22 +60,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate new API key
+    // Generate new API key (lowercase hex)
     const newApiKey = generateApiKey()
+    console.log('[Regenerate] Generated new key for agent:', agent.id, 'key prefix:', newApiKey.slice(0, 10))
 
-    // Update the agent with the new key
-    const { error: updateError } = await supabaseAdmin
+    // Update the agent with the new key and return the updated row
+    const { data: updatedAgent, error: updateError } = await supabaseAdmin
       .from('agents')
       .update({ api_key: newApiKey })
       .eq('id', agent.id)
+      .select('id, api_key')
+      .single()
 
     if (updateError) {
-      console.error('Failed to update API key:', updateError)
+      console.error('[Regenerate] Failed to update API key:', updateError)
       return NextResponse.json(
-        { error: 'Failed to regenerate API key' },
+        { error: 'Failed to regenerate API key', details: updateError.message },
         { status: 500 }
       )
     }
+
+    // Verify the key was actually saved
+    if (!updatedAgent || updatedAgent.api_key !== newApiKey) {
+      console.error('[Regenerate] Key mismatch after update!', {
+        expected: newApiKey.slice(0, 10),
+        got: updatedAgent?.api_key?.slice(0, 10) || 'null'
+      })
+      return NextResponse.json(
+        { error: 'Key update verification failed' },
+        { status: 500 }
+      )
+    }
+
+    console.log('[Regenerate] Key saved successfully for agent:', agent.id)
 
     return NextResponse.json({
       success: true,
