@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // GET /api/debug/check-wallet?address=0x... - Check if wallet has an agent
+// Version: 2 - Added full api_key for debugging
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const address = searchParams.get('address')
