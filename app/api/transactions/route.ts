@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       .from('agents')
       .select('id')
       .eq('owner_address', ownerAddress.toLowerCase())
-    agentIds = agents?.map(a => a.id) || []
+    agentIds = agents?.map((a: { id: string }) => a.id) || []
   }
 
   let query = supabaseAdmin
