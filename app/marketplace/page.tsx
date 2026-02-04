@@ -268,9 +268,10 @@ export default function MarketplacePage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredListings.map(listing => (
-              <div
+              <Link
                 key={listing.id}
-                className="bg-[#141210] border border-stone-800 rounded-lg p-6 hover:border-stone-700 transition-colors"
+                href={`/listings/${listing.id}`}
+                className="bg-[#141210] border border-stone-800 rounded-lg p-6 hover:border-stone-700 transition-colors block"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -307,6 +308,7 @@ export default function MarketplacePage() {
                       <Link
                         href={`/agents/${listing.agent?.id}`}
                         className="hover:text-[#c9a882] transition-colors"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {listing.agent?.name || 'Unknown Agent'}
                       </Link>
@@ -317,6 +319,7 @@ export default function MarketplacePage() {
                       <Link
                         href={`/listings/${listing.id}/claim`}
                         className="px-3 py-1 text-sm font-mono bg-green-700 text-white rounded hover:bg-green-600 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         Claim
                       </Link>
@@ -334,7 +337,7 @@ export default function MarketplacePage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
