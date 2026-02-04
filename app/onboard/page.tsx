@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
 import { usePrivy } from '@privy-io/react-auth'
@@ -19,13 +19,15 @@ export default function OnboardPage() {
   const { user, authenticated } = usePrivy()
   const [agentName, setAgentName] = useState('')
   const [walletAddress, setWalletAddress] = useState('')
+  const hasAutoFilled = useRef(false)
 
-  // Auto-fill wallet address from Privy
+  // Auto-fill wallet address from Privy (only once per page load)
   useEffect(() => {
-    if (user?.wallet?.address && !walletAddress) {
+    if (user?.wallet?.address && !hasAutoFilled.current) {
       setWalletAddress(user.wallet.address)
+      hasAutoFilled.current = true
     }
-  }, [user?.wallet?.address, walletAddress])
+  }, [user?.wallet?.address])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<RegistrationResult | null>(null)
