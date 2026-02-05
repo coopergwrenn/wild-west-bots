@@ -298,14 +298,20 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
                   {TIER_LABELS[tier]}
                 </span>
               </div>
-              <a
-                href={`https://basescan.org/address/${agent.wallet_address}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-stone-500 font-mono hover:text-[#c9a882] transition-colors mt-1"
-              >
-                {truncateAddress(agent.wallet_address)}
-              </a>
+              <div className="flex items-center gap-3 mt-1">
+                <a
+                  href={`https://basescan.org/address/${agent.wallet_address}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-stone-500 font-mono hover:text-[#c9a882] transition-colors"
+                >
+                  {truncateAddress(agent.wallet_address)}
+                </a>
+                <span className="text-stone-700">•</span>
+                <span className="text-sm text-stone-500 font-mono">
+                  Joined {new Date(agent.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -345,9 +351,71 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Status</p>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${
+                agent.is_paused ? 'bg-yellow-500' : agent.is_active ? 'bg-green-500' : 'bg-stone-500'
+              }`} />
+              <span className="font-mono text-sm font-bold">
+                {agent.is_paused ? 'Paused' : agent.is_active ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+          </div>
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Earned</p>
+            <p className="text-xl font-mono font-bold text-[#c9a882]">{formatUSDC(agent.total_earned_wei)}</p>
+          </div>
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Spent</p>
+            <p className="text-xl font-mono font-bold">{formatUSDC(agent.total_spent_wei)}</p>
+          </div>
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Transactions</p>
+            <p className="text-xl font-mono font-bold">{agent.transaction_count}</p>
+          </div>
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Success Rate</p>
+            <p className="text-xl font-mono font-bold text-green-400">
+              {reputation ? formatPercent(reputation.successRate) : '—'}
+            </p>
+          </div>
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
+            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Reviews</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xl font-mono font-bold">{reviewStats?.review_count || 0}</p>
+              {reviewStats && reviewStats.average_rating > 0 && (
+                <span className="text-amber-400 text-sm">★ {reviewStats.average_rating.toFixed(1)}</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Hire Agent CTA */}
+        {agent.is_active && !agent.is_paused && listings.filter(l => l.is_active).length > 0 && (
+          <div className="bg-gradient-to-r from-[#c9a882]/10 to-[#c9a882]/5 border border-[#c9a882]/30 rounded-lg p-6 mb-8 flex items-center justify-between">
+            <div>
+              <h3 className="font-mono font-bold text-lg mb-1">Hire {agent.name}</h3>
+              <p className="text-sm font-mono text-stone-400">
+                {listings.filter(l => l.is_active).length} active listing{listings.filter(l => l.is_active).length !== 1 ? 's' : ''} starting at {formatUSDC(
+                  Math.min(...listings.filter(l => l.is_active).map(l => parseInt(l.price_wei))).toString()
+                )}
+              </p>
+            </div>
+            <a
+              href="#listings"
+              className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors whitespace-nowrap"
+            >
+              View Listings
+            </a>
+          </div>
+        )}
+
         {/* Active Listings */}
         {listings.filter(l => l.is_active).length > 0 && (
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
+          <div id="listings" className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
             <h2 className="text-lg font-mono font-bold mb-4">Active Listings</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {listings.filter(l => l.is_active).map((listing) => (
@@ -373,67 +441,6 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        {/* Recent Transactions */}
-        {recentTransactions.length > 0 && (
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-mono font-bold mb-4">Recent Transactions</h2>
-            <div className="space-y-3">
-              {recentTransactions.slice(0, 10).map((tx) => (
-                <Link
-                  key={tx.id}
-                  href={`/transactions/${tx.id}`}
-                  className="flex items-center justify-between py-2 border-b border-stone-800 last:border-0 hover:bg-stone-900/30 -mx-2 px-2 rounded transition-colors"
-                >
-                  <div>
-                    <p className="font-mono text-sm">{tx.description || 'Transaction'}</p>
-                    <span className={`text-xs font-mono ${
-                      tx.state === 'RELEASED' ? 'text-green-500' :
-                      tx.state === 'DISPUTED' ? 'text-red-500' :
-                      tx.state === 'REFUNDED' ? 'text-orange-500' :
-                      'text-stone-500'
-                    }`}>
-                      {tx.state}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono font-bold text-[#c9a882]">{formatUSDC(tx.amount_wei)}</p>
-                    <span className="text-xs font-mono text-stone-500">
-                      {new Date(tx.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Status & Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
-            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Status</p>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${
-                agent.is_paused ? 'bg-yellow-500' : agent.is_active ? 'bg-green-500' : 'bg-stone-500'
-              }`} />
-              <span className="font-mono text-sm">
-                {agent.is_paused ? 'Paused' : agent.is_active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-          </div>
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
-            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Earned</p>
-            <p className="font-mono font-bold text-[#c9a882]">{formatUSDC(agent.total_earned_wei)}</p>
-          </div>
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
-            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Spent</p>
-            <p className="font-mono font-bold">{formatUSDC(agent.total_spent_wei)}</p>
-          </div>
-          <div className="bg-[#141210] border border-stone-800 rounded-lg p-4">
-            <p className="text-xs font-mono text-stone-500 uppercase mb-1">Transactions</p>
-            <p className="font-mono font-bold">{agent.transaction_count}</p>
-          </div>
-        </div>
-
         {/* Reputation Details */}
         {reputation && (
           <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
@@ -458,49 +465,6 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
             </div>
           </div>
         )}
-
-        {/* Specializations */}
-        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-mono font-bold mb-4">Specializations</h2>
-          {specializations.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {specializations.map((spec) => (
-                <span
-                  key={spec.category}
-                  className="px-3 py-1 text-sm font-mono bg-stone-800 text-stone-300 rounded"
-                >
-                  {spec.category} ({spec.count})
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm font-mono text-stone-500">No specializations yet</p>
-          )}
-        </div>
-
-        {/* Completed Work / Portfolio */}
-        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
-          <h2 className="text-lg font-mono font-bold mb-4">Completed Work</h2>
-          {completedWork.length > 0 ? (
-            <div className="space-y-3">
-              {completedWork.slice(0, 10).map((work) => (
-                <div key={work.id} className="flex items-center justify-between py-2 border-b border-stone-800 last:border-0">
-                  <div>
-                    <p className="font-mono text-sm">{work.title}</p>
-                    {work.category && (
-                      <span className="text-xs font-mono text-stone-500">{work.category}</span>
-                    )}
-                  </div>
-                  <span className="text-xs font-mono text-stone-500">
-                    {new Date(work.completed_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm font-mono text-stone-500">No completed work yet</p>
-          )}
-        </div>
 
         {/* Reviews */}
         <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
@@ -594,8 +558,51 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
+        {/* Completed Work / Portfolio */}
+        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-mono font-bold mb-4">Completed Work</h2>
+          {completedWork.length > 0 ? (
+            <div className="space-y-3">
+              {completedWork.slice(0, 10).map((work) => (
+                <div key={work.id} className="flex items-center justify-between py-2 border-b border-stone-800 last:border-0">
+                  <div>
+                    <p className="font-mono text-sm">{work.title}</p>
+                    {work.category && (
+                      <span className="text-xs font-mono text-stone-500">{work.category}</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-mono text-stone-500">
+                    {new Date(work.completed_at).toLocaleDateString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm font-mono text-stone-500">No completed work yet</p>
+          )}
+        </div>
+
+        {/* Specializations */}
+        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
+          <h2 className="text-lg font-mono font-bold mb-4">Specializations</h2>
+          {specializations.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {specializations.map((spec) => (
+                <span
+                  key={spec.category}
+                  className="px-3 py-1 text-sm font-mono bg-stone-800 text-stone-300 rounded"
+                >
+                  {spec.category} ({spec.count})
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm font-mono text-stone-500">No specializations yet</p>
+          )}
+        </div>
+
         {/* Endorsements */}
-        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6">
+        <div className="bg-[#141210] border border-stone-800 rounded-lg p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-mono font-bold">
               Endorsed by ({endorsements.length})
@@ -633,6 +640,40 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
             <p className="text-sm font-mono text-stone-500">No endorsements yet</p>
           )}
         </div>
+
+        {/* Recent Transactions */}
+        {recentTransactions.length > 0 && (
+          <div className="bg-[#141210] border border-stone-800 rounded-lg p-6">
+            <h2 className="text-lg font-mono font-bold mb-4">Recent Transactions</h2>
+            <div className="space-y-3">
+              {recentTransactions.slice(0, 10).map((tx) => (
+                <Link
+                  key={tx.id}
+                  href={`/transactions/${tx.id}`}
+                  className="flex items-center justify-between py-2 border-b border-stone-800 last:border-0 hover:bg-stone-900/30 -mx-2 px-2 rounded transition-colors"
+                >
+                  <div>
+                    <p className="font-mono text-sm">{tx.description || 'Transaction'}</p>
+                    <span className={`text-xs font-mono ${
+                      tx.state === 'RELEASED' ? 'text-green-500' :
+                      tx.state === 'DISPUTED' ? 'text-red-500' :
+                      tx.state === 'REFUNDED' ? 'text-orange-500' :
+                      'text-stone-500'
+                    }`}>
+                      {tx.state}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono font-bold text-[#c9a882]">{formatUSDC(tx.amount_wei)}</p>
+                    <span className="text-xs font-mono text-stone-500">
+                      {new Date(tx.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   )
