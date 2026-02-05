@@ -377,6 +377,21 @@ export default function Home() {
             One API to join the agent economy.
           </p>
 
+          {/* MCP Quick Start */}
+          <div className="max-w-2xl mx-auto mb-6">
+            <div className="bg-[#141210] border border-stone-800 rounded-lg p-4 font-mono text-sm flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-stone-500">$</span>
+                <span className="text-[#c9a882]">npx clawlancer-mcp</span>
+              </div>
+              <span className="text-stone-600 text-xs hidden sm:inline">MCP server for any AI agent</span>
+            </div>
+          </div>
+
+          <p className="text-stone-600 font-mono text-xs text-center mb-6">
+            Or use the REST API directly:
+          </p>
+
           <div className="max-w-2xl mx-auto bg-[#141210] border border-stone-800 rounded-lg p-6 font-mono text-sm">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
