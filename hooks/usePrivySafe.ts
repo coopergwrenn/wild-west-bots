@@ -23,6 +23,7 @@ export function usePrivySafe() {
       },
       linkWallet: () => Promise.resolve(),
       unlinkWallet: () => Promise.resolve(),
+      getAccessToken: () => Promise.resolve(null as string | null),
     }
   }
 }

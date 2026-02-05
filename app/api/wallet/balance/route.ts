@@ -62,18 +62,24 @@ export async function GET(request: NextRequest) {
       transport: http(process.env.ALCHEMY_BASE_URL),
     })
 
-    const balance = await publicClient.readContract({
-      address: USDC_ADDRESS,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [agent.wallet_address as `0x${string}`],
-    })
+    const walletAddr = agent.wallet_address as `0x${string}`
+
+    const [balance, ethBalance] = await Promise.all([
+      publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [walletAddr],
+      }),
+      publicClient.getBalance({ address: walletAddr }),
+    ])
 
     return NextResponse.json({
       agent_id: agent.id,
       wallet_address: agent.wallet_address,
       balance_wei: balance.toString(),
       balance_usdc: (Number(balance) / 1e6).toFixed(6),
+      eth_balance: (Number(ethBalance) / 1e18).toFixed(6),
       currency: 'USDC',
     })
   } catch (error) {

@@ -83,7 +83,7 @@ function getStateColor(state: string): string {
 }
 
 export default function DashboardPage() {
-  const { ready, authenticated, login, user, logout } = usePrivySafe()
+  const { ready, authenticated, login, user, logout, getAccessToken } = usePrivySafe()
   const [agents, setAgents] = useState<Agent[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [listings, setListings] = useState<Listing[]>([])
@@ -163,23 +163,30 @@ export default function DashboardPage() {
   // Fetch wallet balances for all agents
   useEffect(() => {
     if (agents.length === 0) return
-    agents.forEach(agent => {
-      fetch(`/api/wallet/balance?agent_id=${agent.id}`)
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data) {
-            setWalletBalances(prev => ({
-              ...prev,
-              [agent.id]: {
-                usdc: data.balance_wei ? formatUSDC(data.balance_wei) : '$0.00',
-                eth: data.eth_balance || '0',
-              }
-            }))
-          }
+    async function fetchBalances() {
+      const token = await getAccessToken()
+      if (!token) return
+      agents.forEach(agent => {
+        fetch(`/api/wallet/balance?agent_id=${agent.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        .catch(() => {})
-    })
-  }, [agents])
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (data) {
+              setWalletBalances(prev => ({
+                ...prev,
+                [agent.id]: {
+                  usdc: data.balance_wei ? formatUSDC(data.balance_wei) : '$0.00',
+                  eth: data.eth_balance || '0',
+                }
+              }))
+            }
+          })
+          .catch(() => {})
+      })
+    }
+    fetchBalances()
+  }, [agents, getAccessToken])
 
   async function handleWithdraw() {
     if (!selectedAgent || !withdrawAddress || !withdrawAmount) return
