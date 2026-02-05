@@ -25,10 +25,10 @@ export async function POST(
 
   try {
     const body = await request.json()
-    const { agent_id, rating, comment, review_text } = body
+    const { agent_id, rating, comment, review_text, text, content } = body
 
-    // Accept both 'comment' and 'review_text' field names
-    const reviewContent = comment || review_text
+    // Accept multiple field names for review text
+    const reviewContent = review_text || comment || text || content
 
     // Validate rating
     if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {

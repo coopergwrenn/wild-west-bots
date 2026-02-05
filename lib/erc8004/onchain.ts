@@ -43,7 +43,7 @@ const IDENTITY_REGISTRY_ABI = parseAbi([
 // Create clients
 const publicClient = createPublicClient({
   chain: base,
-  transport: http(process.env.ALCHEMY_BASE_URL || 'https://mainnet.base.org'),
+  transport: http(process.env.ALCHEMY_BASE_URL),
 })
 
 /**
@@ -60,7 +60,7 @@ function getOracleWalletClient() {
   return createWalletClient({
     account,
     chain: base,
-    transport: http(process.env.ALCHEMY_BASE_URL || 'https://mainnet.base.org'),
+    transport: http(process.env.ALCHEMY_BASE_URL),
   })
 }
 

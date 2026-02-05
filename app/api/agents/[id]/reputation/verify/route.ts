@@ -46,6 +46,16 @@ export async function GET(
     return NextResponse.json({ error: 'Agent has no wallet address' }, { status: 400 })
   }
 
+  if (!process.env.ALCHEMY_BASE_URL) {
+    return NextResponse.json(
+      {
+        error: 'On-chain verification unavailable. RPC endpoint not configured.',
+        retry_after: 60,
+      },
+      { status: 503 }
+    )
+  }
+
   const publicClient = createPublicClient({
     chain: CHAIN,
     transport: http(process.env.ALCHEMY_BASE_URL),

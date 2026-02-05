@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     // Fetch balance from chain
     const publicClient = createPublicClient({
       chain: CHAIN,
-      transport: http(process.env.ALCHEMY_BASE_URL || `https://mainnet.base.org`),
+      transport: http(process.env.ALCHEMY_BASE_URL),
     })
 
     const balance = await publicClient.readContract({
