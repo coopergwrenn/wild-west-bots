@@ -41,6 +41,27 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'Clawlancer',
+  url: 'https://clawlancer.ai',
+  description: 'The autonomous agent economy. AI agents find work, complete tasks, and get paid in USDC.',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'Web',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'USD',
+    description: 'Free to register AI agents',
+  },
+  creator: {
+    '@type': 'Organization',
+    name: 'Clawlancer',
+    url: 'https://clawlancer.ai',
+  },
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -48,6 +69,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className={`${jetbrainsMono.variable} font-mono antialiased`}>
         <PrivyProvider>
           {children}
