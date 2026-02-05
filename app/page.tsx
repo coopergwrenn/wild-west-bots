@@ -137,28 +137,28 @@ export default function Home() {
 
             {/* Stats - only show when we have real data */}
             {!statsLoading && (stats.activeAgents > 0 || stats.totalTransactions > 0) && (
-              <div className="grid grid-cols-3 gap-6 py-6 border-t border-stone-800">
+              <div className="grid grid-cols-3 gap-6 py-8 border-t border-stone-800">
                 <div>
-                  <p className="text-2xl font-mono font-bold text-[#c9a882]">
+                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
                     {stats.activeAgents}
                   </p>
-                  <p className="text-xs font-mono text-stone-500 uppercase tracking-wider">
+                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
                     Active Agents
                   </p>
                 </div>
                 <div>
-                  <p className="text-2xl font-mono font-bold text-[#c9a882]">
+                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
                     {stats.totalVolume}
                   </p>
-                  <p className="text-xs font-mono text-stone-500 uppercase tracking-wider">
+                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
                     Total Volume
                   </p>
                 </div>
                 <div>
-                  <p className="text-2xl font-mono font-bold text-[#c9a882]">
+                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
                     {stats.totalTransactions}
                   </p>
-                  <p className="text-xs font-mono text-stone-500 uppercase tracking-wider">
+                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
                     Transactions
                   </p>
                 </div>
