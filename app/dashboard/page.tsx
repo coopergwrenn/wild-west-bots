@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ViewCardButton } from '@/components/agent-card-modal'
 import { Logo } from '@/components/ui/logo'
 import { MessagesSection } from '@/components/dashboard/messages-section'
+import { NotificationBell } from '@/components/notification-bell'
 
 interface Agent {
   id: string
@@ -51,16 +52,6 @@ interface Listing {
   agent_id: string
 }
 
-interface Notification {
-  id: string
-  type: string
-  title: string
-  message: string
-  read: boolean
-  created_at: string
-  related_transaction_id: string | null
-}
-
 function formatUSDC(wei: string): string {
   const usdc = parseFloat(wei) / 1e6
   return `$${usdc.toFixed(2)}`
@@ -96,11 +87,8 @@ export default function DashboardPage() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [listings, setListings] = useState<Listing[]>([])
-  const [notifications, setNotifications] = useState<Notification[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'agents' | 'listings' | 'transactions' | 'messages'>('agents')
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [walletBalance, setWalletBalance] = useState<string | null>(null)
@@ -126,11 +114,10 @@ export default function DashboardPage() {
 
     async function fetchData() {
       try {
-        const [agentsRes, txRes, listingsRes, notifRes] = await Promise.all([
+        const [agentsRes, txRes, listingsRes] = await Promise.all([
           fetch(`/api/agents?owner=${user?.wallet?.address}`),
           fetch(`/api/transactions?owner=${user?.wallet?.address}`),
           fetch(`/api/listings?owner=${user?.wallet?.address}`),
-          fetch('/api/notifications').catch(() => null),
         ])
 
         if (agentsRes.ok) {
@@ -148,11 +135,6 @@ export default function DashboardPage() {
           setListings(data.listings || [])
         }
 
-        if (notifRes?.ok) {
-          const data = await notifRes.json()
-          setNotifications(data.notifications || [])
-          setUnreadCount(data.unread_count || 0)
-        }
       } catch (error) {
         console.error('Failed to fetch data:', error)
       } finally {
@@ -308,20 +290,6 @@ export default function DashboardPage() {
     setEditAvatarUrl(agent.avatar_url || '')
   }
 
-  async function markNotificationsRead() {
-    try {
-      await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mark_all_read: true }),
-      })
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-      setUnreadCount(0)
-    } catch (err) {
-      console.error('Failed to mark notifications read:', err)
-    }
-  }
-
   if (!ready) {
     return (
       <main className="min-h-screen bg-[#1a1614] text-[#e8ddd0] flex items-center justify-center">
@@ -389,54 +357,7 @@ export default function DashboardPage() {
               agents
             </Link>
 
-            {/* Notifications Bell */}
-            <div className="relative">
-              <button
-                onClick={() => {
-                  setShowNotifications(!showNotifications)
-                  if (!showNotifications && unreadCount > 0) {
-                    markNotificationsRead()
-                  }
-                }}
-                className="p-2 text-stone-400 hover:text-[#c9a882] transition-colors relative"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Notifications Dropdown */}
-              {showNotifications && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-[#1a1614] border border-stone-700 rounded-lg shadow-xl z-50">
-                  <div className="p-4 border-b border-stone-700">
-                    <h3 className="font-mono font-bold">Notifications</h3>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto">
-                    {notifications.length === 0 ? (
-                      <p className="p-4 text-stone-500 text-sm font-mono">No notifications</p>
-                    ) : (
-                      notifications.slice(0, 10).map(notif => (
-                        <div
-                          key={notif.id}
-                          className={`p-4 border-b border-stone-800 ${!notif.read ? 'bg-stone-900/50' : ''}`}
-                        >
-                          <p className="font-mono text-sm font-bold">{notif.title}</p>
-                          <p className="font-mono text-xs text-stone-400 mt-1">{notif.message}</p>
-                          <p className="font-mono text-xs text-stone-600 mt-2">
-                            {new Date(notif.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <NotificationBell />
 
             <div className="flex items-center gap-4">
               <span className="text-sm font-mono text-stone-500">

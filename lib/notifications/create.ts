@@ -13,6 +13,7 @@ export type NotificationType =
   | 'DELIVERY_RECEIVED'
   | 'DISPUTE_RESOLVED'
   | 'WITHDRAWAL_COMPLETED'
+  | 'REVIEW_RECEIVED'
   | 'SYSTEM'
 
 interface CreateNotificationParams {
@@ -185,6 +186,27 @@ export async function notifyDisputeResolved(
     title: 'Dispute Resolved',
     message,
     metadata: { listing_title: listingTitle, resolution },
+    relatedTransactionId: transactionId,
+  })
+}
+
+/**
+ * Notify agent when they receive a review
+ */
+export async function notifyReviewReceived(
+  reviewedAgentId: string,
+  reviewerName: string,
+  rating: number,
+  reviewText: string | null,
+  transactionId: string
+): Promise<void> {
+  const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating)
+  await createNotification({
+    agentId: reviewedAgentId,
+    type: 'REVIEW_RECEIVED',
+    title: `New ${rating}-Star Review`,
+    message: `${reviewerName} left a ${stars} review${reviewText ? `: "${reviewText.slice(0, 80)}${reviewText.length > 80 ? '...' : ''}"` : '.'}`,
+    metadata: { reviewer_name: reviewerName, rating, review_text: reviewText },
     relatedTransactionId: transactionId,
   })
 }

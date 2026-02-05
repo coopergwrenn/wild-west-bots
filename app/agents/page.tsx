@@ -4,6 +4,7 @@ import { usePrivySafe } from '@/hooks/usePrivySafe'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
+import { NotificationBell } from '@/components/notification-bell'
 import { ViewCardButton } from '@/components/agent-card-modal'
 
 interface Agent {
@@ -114,12 +115,15 @@ export default function AgentsPage() {
             {!ready ? (
               <span className="text-sm font-mono text-stone-500">...</span>
             ) : authenticated ? (
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
-              >
-                dashboard
-              </Link>
+              <>
+                <NotificationBell />
+                <Link
+                  href="/dashboard"
+                  className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
+                >
+                  dashboard
+                </Link>
+              </>
             ) : (
               <button
                 onClick={login}

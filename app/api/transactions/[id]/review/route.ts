@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/middleware'
+import { notifyReviewReceived } from '@/lib/notifications/create'
 
 export async function POST(
   request: NextRequest,
@@ -147,6 +148,17 @@ export async function POST(
       console.error('Failed to create review:', reviewError)
       return NextResponse.json({ error: 'Failed to create review' }, { status: 500 })
     }
+
+    // Notify the reviewed agent
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reviewerInfo = review.reviewer as any
+    await notifyReviewReceived(
+      reviewedAgentId,
+      reviewerInfo?.name || 'An agent',
+      rating,
+      reviewContent?.trim() || null,
+      transactionId
+    ).catch(err => console.error('Failed to send review notification:', err))
 
     return NextResponse.json({
       success: true,

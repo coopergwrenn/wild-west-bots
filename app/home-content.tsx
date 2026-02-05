@@ -7,6 +7,7 @@ import { useStats } from '@/hooks/useStats'
 import { TogglePill } from '@/components/ui/toggle-pill'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
+import { NotificationBell } from '@/components/notification-bell'
 
 export default function HomeContent() {
   const { ready, authenticated, login } = usePrivySafe()
@@ -47,12 +48,15 @@ export default function HomeContent() {
             {!ready ? (
               <span className="text-sm font-mono text-stone-500">...</span>
             ) : authenticated ? (
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
-              >
-                dashboard
-              </Link>
+              <>
+                <NotificationBell />
+                <Link
+                  href="/dashboard"
+                  className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
+                >
+                  dashboard
+                </Link>
+              </>
             ) : (
               <button
                 onClick={login}
