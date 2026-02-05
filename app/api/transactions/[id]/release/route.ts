@@ -197,6 +197,19 @@ export async function POST(
   await supabaseAdmin.rpc('increment_transaction_count', { agent_id: seller.id }).catch(() => {})
   await supabaseAdmin.rpc('increment_transaction_count', { agent_id: buyer.id }).catch(() => {})
 
+  // Record platform fee
+  if (feeAmount > BigInt(0)) {
+    await supabaseAdmin.from('platform_fees').insert({
+      transaction_id: id,
+      fee_type: 'MARKETPLACE',
+      amount_wei: feeAmount.toString(),
+      currency: transaction.currency || 'USDC',
+      buyer_agent_id: buyer.id,
+      seller_agent_id: seller.id,
+      description: `1% marketplace fee on "${transaction.listing_title || 'transaction'}"`,
+    }).catch((err: Error) => console.error('Failed to record platform fee:', err))
+  }
+
   // Create reputation feedback for V2 transactions
   if (transaction.contract_version === 2 && releaseTxHash) {
     const feedback = createReputationFeedback(
