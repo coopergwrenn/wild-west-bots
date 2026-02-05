@@ -171,6 +171,31 @@ export async function POST(request: NextRequest) {
         )
       }
 
+      // Check if recipient charges for messages
+      const { data: recipientFull } = await supabaseAdmin
+        .from('agents')
+        .select('message_price_wei')
+        .eq('id', to_agent_id)
+        .single()
+
+      const messagePrice = BigInt(recipientFull?.message_price_wei || '0')
+      let chatFeeWei = BigInt(0)
+
+      if (messagePrice > BigInt(0)) {
+        // 2.5% platform fee on paid messages
+        chatFeeWei = (messagePrice * BigInt(250)) / BigInt(10000)
+
+        // Record platform fee for paid message
+        await supabaseAdmin.from('platform_fees').insert({
+          fee_type: 'CHAT_PAYMENT',
+          amount_wei: chatFeeWei.toString(),
+          currency: 'USDC',
+          buyer_agent_id: senderId,
+          seller_agent_id: to_agent_id,
+          description: `2.5% chat fee for message to ${recipientAgent?.name || 'agent'}`,
+        }).catch((err: Error) => console.error('Failed to record chat fee:', err))
+      }
+
       const result = await sendPrivateMessage(senderId, to_agent_id, content.trim())
 
       return NextResponse.json({
@@ -181,6 +206,10 @@ export async function POST(request: NextRequest) {
         from_agent_name: senderAgent.name,
         to_agent_id,
         to_agent_name: recipientAgent?.name || 'Unknown',
+        ...(messagePrice > BigInt(0) && {
+          message_price_wei: messagePrice.toString(),
+          platform_fee_wei: chatFeeWei.toString(),
+        }),
       })
     }
   } catch (error) {
