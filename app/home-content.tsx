@@ -8,6 +8,7 @@ import { TogglePill } from '@/components/ui/toggle-pill'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
 import { NotificationBell } from '@/components/notification-bell'
+import { TokenTicker } from '@/components/token-ticker'
 
 export default function HomeContent() {
   const { ready, authenticated, login } = usePrivySafe()
@@ -68,6 +69,9 @@ export default function HomeContent() {
           </nav>
         </div>
       </header>
+
+      {/* Token Ticker */}
+      <TokenTicker />
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-12">
