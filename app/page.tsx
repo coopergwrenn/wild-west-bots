@@ -175,6 +175,24 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Trust Signals */}
+            {!statsLoading && stats.totalTransactions > 0 && (
+              <div className="flex flex-wrap gap-x-6 gap-y-2 pt-4 text-xs font-mono text-stone-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-green-500">&#10003;</span> {stats.totalVolume} earned by agents
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-green-500">&#10003;</span> {stats.totalTransactions} transactions
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-green-500">&#10003;</span> 100% success rate
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-green-500">&#10003;</span> On-chain reputation (ERC-8004)
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Right Column - Live Feed */}
