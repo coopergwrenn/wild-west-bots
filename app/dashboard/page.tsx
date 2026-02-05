@@ -106,6 +106,9 @@ export default function DashboardPage() {
   const [editAvatarUrl, setEditAvatarUrl] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
 
+  // Wallet balances for all agents
+  const [walletBalances, setWalletBalances] = useState<Record<string, { usdc: string; eth: string }>>({})
+
   useEffect(() => {
     if (!authenticated || !user?.wallet?.address) {
       setIsLoading(false)
@@ -156,6 +159,27 @@ export default function DashboardPage() {
         .catch(() => setWalletBalance(null))
     }
   }, [showWithdrawModal, selectedAgent])
+
+  // Fetch wallet balances for all agents
+  useEffect(() => {
+    if (agents.length === 0) return
+    agents.forEach(agent => {
+      fetch(`/api/wallet/balance?agent_id=${agent.id}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setWalletBalances(prev => ({
+              ...prev,
+              [agent.id]: {
+                usdc: data.balance_wei ? formatUSDC(data.balance_wei) : '$0.00',
+                eth: data.eth_balance || '0',
+              }
+            }))
+          }
+        })
+        .catch(() => {})
+    })
+  }, [agents])
 
   async function handleWithdraw() {
     if (!selectedAgent || !withdrawAddress || !withdrawAmount) return
@@ -417,6 +441,76 @@ export default function DashboardPage() {
             <p className="text-xs font-mono text-stone-500 uppercase tracking-wider mt-1">Active Listings</p>
           </div>
         </div>
+
+        {/* Wallet Cards */}
+        {agents.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-mono font-bold mb-4">Wallets</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {agents.map(agent => {
+                const bal = walletBalances[agent.id]
+                const usdcZero = !bal || bal.usdc === '$0.00'
+                const ethZero = !bal || parseFloat(bal.eth) === 0
+                const needsFunding = usdcZero || ethZero
+                return (
+                  <div key={agent.id} className={`bg-[#141210] border rounded-lg p-5 ${needsFunding ? 'border-yellow-700/50' : 'border-stone-800'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="font-mono font-bold text-sm">{agent.name}</span>
+                      <span className="text-xs font-mono text-stone-500">Base L2</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4">
+                      <code className="flex-1 text-xs font-mono text-stone-400 bg-stone-900 px-3 py-1.5 rounded truncate">
+                        {agent.wallet_address}
+                      </code>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(agent.wallet_address)
+                        }}
+                        className="px-2 py-1.5 bg-stone-800 text-stone-400 text-xs font-mono rounded hover:bg-stone-700 hover:text-white transition-colors shrink-0"
+                      >
+                        Copy
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <p className="text-xs font-mono text-stone-500">USDC</p>
+                        <p className={`text-lg font-mono font-bold ${usdcZero ? 'text-red-400' : 'text-[#c9a882]'}`}>
+                          {bal ? bal.usdc : '...'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-mono text-stone-500">ETH (gas)</p>
+                        <p className={`text-lg font-mono font-bold ${ethZero ? 'text-red-400' : 'text-stone-300'}`}>
+                          {bal ? `${parseFloat(bal.eth).toFixed(4)}` : '...'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {needsFunding && (
+                      <div className="pt-3 border-t border-stone-800">
+                        <p className="text-xs font-mono text-yellow-400 mb-2">
+                          {usdcZero && ethZero
+                            ? 'Wallet is empty. Fund to buy services.'
+                            : usdcZero
+                            ? 'No USDC. Fund to buy services.'
+                            : 'No ETH for gas fees.'}
+                        </p>
+                        <Link
+                          href="/how-to-fund"
+                          className="inline-block px-3 py-1.5 bg-yellow-600/20 border border-yellow-700/50 text-yellow-400 text-xs font-mono rounded hover:bg-yellow-600/30 transition-colors"
+                        >
+                          How to Fund →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Suggested Work */}
         <SuggestedWork agents={agents} />
