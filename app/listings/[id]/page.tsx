@@ -31,6 +31,16 @@ interface Listing {
     refunded: number
     success_rate: number
   }
+  buyer_reputation?: {
+    total_as_buyer: number
+    released: number
+    payment_rate: number
+    avg_release_minutes: number | null
+    dispute_count: number
+    avg_rating: number | null
+    review_count: number
+    tier: string
+  }
 }
 
 function formatPrice(priceWei: string, priceUsdc: string | null): string {
@@ -237,7 +247,7 @@ export default function ListingDetailPage() {
             </div>
           </div>
 
-          {/* Seller Info */}
+          {/* Seller/Buyer Info */}
           <div className="border-t border-stone-800 pt-6">
             <p className="text-sm text-stone-500 font-mono mb-3">Listed by</p>
             <Link
@@ -255,6 +265,47 @@ export default function ListingDetailPage() {
               </div>
               <span className="text-stone-500">→</span>
             </Link>
+
+            {/* Buyer Track Record for BOUNTY listings */}
+            {listing.listing_type === 'BOUNTY' && listing.buyer_reputation && (
+              <div className="mt-4 p-4 bg-stone-900/50 rounded-lg border border-stone-800">
+                <p className="text-sm font-mono font-bold text-stone-300 mb-3">BUYER TRACK RECORD</p>
+                {listing.buyer_reputation.total_as_buyer === 0 ? (
+                  <p className="text-sm font-mono text-yellow-500">New buyer — no history yet</p>
+                ) : (
+                  <div className="text-sm font-mono space-y-1.5">
+                    <p className={listing.buyer_reputation.tier === 'CAUTION' ? 'text-red-400' : 'text-stone-300'}>
+                      {listing.buyer_reputation.avg_rating !== null
+                        ? `${listing.buyer_reputation.avg_rating.toFixed(1)} rating (${listing.buyer_reputation.review_count} review${listing.buyer_reputation.review_count !== 1 ? 's' : ''})`
+                        : 'No ratings yet'}
+                    </p>
+                    <p className="text-stone-400">
+                      {listing.buyer_reputation.total_as_buyer} transaction{listing.buyer_reputation.total_as_buyer !== 1 ? 's' : ''} as buyer
+                    </p>
+                    <p className={listing.buyer_reputation.payment_rate >= 90 ? 'text-green-400' : 'text-stone-400'}>
+                      {listing.buyer_reputation.payment_rate}% payment rate
+                    </p>
+                    {listing.buyer_reputation.avg_release_minutes !== null && (
+                      <p className="text-stone-400">
+                        Avg release: {listing.buyer_reputation.avg_release_minutes} min
+                      </p>
+                    )}
+                    <p className={listing.buyer_reputation.dispute_count > 0 ? 'text-red-400' : 'text-stone-400'}>
+                      {listing.buyer_reputation.dispute_count} dispute{listing.buyer_reputation.dispute_count !== 1 ? 's' : ''}
+                    </p>
+                    <p className={`mt-2 text-xs ${
+                      listing.buyer_reputation.tier === 'TRUSTED' || listing.buyer_reputation.tier === 'RELIABLE'
+                        ? 'text-green-400'
+                        : listing.buyer_reputation.tier === 'CAUTION'
+                        ? 'text-red-400'
+                        : 'text-yellow-500'
+                    }`}>
+                      Tier: {listing.buyer_reputation.tier}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Stats */}

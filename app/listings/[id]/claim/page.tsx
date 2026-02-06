@@ -23,6 +23,16 @@ interface Listing {
     name: string
     wallet_address: string
   }
+  buyer_reputation?: {
+    total_as_buyer: number
+    released: number
+    payment_rate: number
+    avg_release_minutes: number | null
+    dispute_count: number
+    avg_rating: number | null
+    review_count: number
+    tier: string
+  }
 }
 
 interface Agent {
@@ -327,6 +337,57 @@ export default function ClaimBountyPage() {
               {error && (
                 <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded">
                   <p className="text-red-400 font-mono text-sm">{error}</p>
+                </div>
+              )}
+
+              {/* Buyer Track Record */}
+              {listing.buyer_reputation && (
+                <div className="bg-stone-900/50 p-4 rounded-lg mb-6 border border-stone-800">
+                  <h3 className="text-sm font-mono font-bold text-stone-300 mb-3">BUYER TRACK RECORD</h3>
+                  {listing.buyer_reputation.total_as_buyer === 0 ? (
+                    <p className="text-sm font-mono text-yellow-500">New buyer — no history yet.</p>
+                  ) : (
+                    <div className="text-sm font-mono space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={listing.buyer_reputation.tier === 'CAUTION' ? 'text-red-400' : 'text-stone-300'}>
+                          {listing.buyer_reputation.avg_rating !== null
+                            ? `${listing.buyer_reputation.avg_rating.toFixed(1)} (${listing.buyer_reputation.review_count} review${listing.buyer_reputation.review_count !== 1 ? 's' : ''})`
+                            : 'No ratings'}
+                        </span>
+                        <span className={`px-1.5 py-0.5 text-[10px] rounded ${
+                          listing.buyer_reputation.tier === 'TRUSTED' || listing.buyer_reputation.tier === 'RELIABLE'
+                            ? 'bg-green-900/30 text-green-400'
+                            : listing.buyer_reputation.tier === 'CAUTION'
+                            ? 'bg-red-900/30 text-red-400'
+                            : 'bg-yellow-900/30 text-yellow-500'
+                        }`}>
+                          {listing.buyer_reputation.tier}
+                        </span>
+                      </div>
+                      <p className={listing.buyer_reputation.payment_rate >= 90 ? 'text-green-400' : 'text-stone-400'}>
+                        {listing.buyer_reputation.payment_rate}% payment rate ({listing.buyer_reputation.released}/{listing.buyer_reputation.total_as_buyer} released)
+                      </p>
+                      {listing.buyer_reputation.avg_release_minutes !== null && (
+                        <p className="text-stone-400">
+                          Avg release: {listing.buyer_reputation.avg_release_minutes} min
+                        </p>
+                      )}
+                      <p className={listing.buyer_reputation.dispute_count > 0 ? 'text-red-400' : 'text-stone-400'}>
+                        {listing.buyer_reputation.dispute_count} dispute{listing.buyer_reputation.dispute_count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+                  <p className={`text-xs font-mono mt-3 ${
+                    listing.buyer_reputation.tier === 'TRUSTED' ? 'text-green-400'
+                      : listing.buyer_reputation.tier === 'RELIABLE' ? 'text-green-400'
+                      : listing.buyer_reputation.tier === 'CAUTION' ? 'text-red-400'
+                      : 'text-yellow-500'
+                  }`}>
+                    {listing.buyer_reputation.tier === 'TRUSTED' ? 'This buyer pays promptly.'
+                      : listing.buyer_reputation.tier === 'RELIABLE' ? 'This buyer has a good track record.'
+                      : listing.buyer_reputation.tier === 'CAUTION' ? 'Caution: this buyer has disputes on record.'
+                      : 'New buyer — limited history.'}
+                  </p>
                 </div>
               )}
 

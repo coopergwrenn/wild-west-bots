@@ -132,7 +132,95 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch listings' }, { status: 500 })
   }
 
-  return NextResponse.json({ listings })
+  // Batch-compute buyer reputation for BOUNTY listings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bountyListings = (listings || []).filter((l: any) => l.listing_type === 'BOUNTY')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bountyAgentIds = [...new Set(bountyListings.map((l: any) => l.agent_id))] as string[]
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const buyerRepMap: Record<string, any> = {}
+
+  if (bountyAgentIds.length > 0) {
+    const { data: buyerTxns } = await supabaseAdmin
+      .from('transactions')
+      .select('buyer_agent_id, state, delivered_at, completed_at')
+      .in('buyer_agent_id', bountyAgentIds)
+      .in('state', ['RELEASED', 'REFUNDED', 'DISPUTED'])
+
+    const { data: buyerReviews } = await supabaseAdmin
+      .from('reviews')
+      .select('reviewed_agent_id, rating')
+      .in('reviewed_agent_id', bountyAgentIds)
+
+    for (const agentId of bountyAgentIds) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txns = buyerTxns?.filter((t: any) => t.buyer_agent_id === agentId) || []
+      const totalAsBuyer = txns.length
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const released = txns.filter((t: any) => t.state === 'RELEASED').length
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const disputeCount = txns.filter((t: any) => t.state === 'DISPUTED').length
+      const paymentRate = totalAsBuyer > 0 ? (released / totalAsBuyer) * 100 : 0
+
+      let avgReleaseMinutes: number | null = null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const releasedWithTimes = txns.filter((t: any) =>
+        t.state === 'RELEASED' && t.delivered_at && t.completed_at
+      )
+      if (releasedWithTimes.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const totalMinutes = releasedWithTimes.reduce((sum: number, t: any) => {
+          const delivered = new Date(t.delivered_at).getTime()
+          const completed = new Date(t.completed_at).getTime()
+          return sum + (completed - delivered) / 60000
+        }, 0)
+        avgReleaseMinutes = Math.round(totalMinutes / releasedWithTimes.length)
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const reviews = buyerReviews?.filter((r: any) => r.reviewed_agent_id === agentId) || []
+      const reviewCount = reviews.length
+      let avgRating: number | null = null
+      if (reviews.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ratingSum = reviews.reduce((sum: number, r: any) => sum + r.rating, 0)
+        avgRating = Math.round((ratingSum / reviews.length) * 10) / 10
+      }
+
+      const disputeRate = totalAsBuyer > 0 ? disputeCount / totalAsBuyer : 0
+      let tier = 'NEW'
+      if (disputeRate > 0.2 || (avgRating !== null && avgRating < 3.0)) {
+        tier = 'CAUTION'
+      } else if (totalAsBuyer >= 10 && (avgRating === null || avgRating >= 4.5) && disputeRate < 0.05) {
+        tier = 'TRUSTED'
+      } else if (totalAsBuyer >= 5 && (avgRating === null || avgRating >= 4.0) && disputeRate < 0.1) {
+        tier = 'RELIABLE'
+      }
+
+      buyerRepMap[agentId] = {
+        total_as_buyer: totalAsBuyer,
+        released,
+        payment_rate: Math.round(paymentRate),
+        avg_release_minutes: avgReleaseMinutes,
+        dispute_count: disputeCount,
+        avg_rating: avgRating,
+        review_count: reviewCount,
+        tier,
+      }
+    }
+  }
+
+  // Attach buyer_reputation to BOUNTY listings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const enrichedListings = (listings || []).map((l: any) => {
+    if (l.listing_type === 'BOUNTY' && buyerRepMap[l.agent_id]) {
+      return { ...l, buyer_reputation: buyerRepMap[l.agent_id] }
+    }
+    return l
+  })
+
+  return NextResponse.json({ listings: enrichedListings })
 }
 
 // POST /api/listings - Create listing

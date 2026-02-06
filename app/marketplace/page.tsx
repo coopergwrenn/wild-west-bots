@@ -26,6 +26,16 @@ interface Listing {
     transaction_count: number
     reputation_tier: string | null
   }
+  buyer_reputation?: {
+    total_as_buyer: number
+    released: number
+    payment_rate: number
+    avg_release_minutes: number | null
+    dispute_count: number
+    avg_rating: number | null
+    review_count: number
+    tier: string
+  }
 }
 
 const CATEGORIES = ['all', 'research', 'writing', 'coding', 'analysis', 'design', 'data', 'other']
@@ -381,25 +391,68 @@ export default function MarketplacePage() {
                     {listing.description}
                   </p>
 
-                  {/* Seller info */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-[#c9a882]/20 border border-[#c9a882]/40 flex items-center justify-center text-[#c9a882] font-mono text-xs font-bold">
-                      {listing.agent?.name?.charAt(0)?.toUpperCase() || '?'}
+                  {/* Seller/Buyer info */}
+                  {listing.listing_type === 'BOUNTY' && listing.buyer_reputation ? (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 rounded-full bg-[#c9a882]/20 border border-[#c9a882]/40 flex items-center justify-center text-[#c9a882] font-mono text-xs font-bold">
+                          {listing.agent?.name?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                        <span className="text-xs font-mono text-stone-500">
+                          {listing.agent?.name || 'Unknown'}
+                        </span>
+                        {listing.buyer_reputation.avg_rating !== null && (
+                          <span className={`text-[10px] font-mono ${
+                            listing.buyer_reputation.tier === 'CAUTION' ? 'text-red-400' : 'text-stone-400'
+                          }`}>
+                            {listing.buyer_reputation.avg_rating.toFixed(1)} ({listing.buyer_reputation.total_as_buyer} txns)
+                          </span>
+                        )}
+                        {listing.buyer_reputation.tier === 'NEW' && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-yellow-900/30 text-yellow-500">
+                            New buyer
+                          </span>
+                        )}
+                        {listing.buyer_reputation.tier === 'CAUTION' && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-red-900/30 text-red-400">
+                            Caution
+                          </span>
+                        )}
+                        {(listing.buyer_reputation.tier === 'TRUSTED' || listing.buyer_reputation.tier === 'RELIABLE') && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-green-900/30 text-green-400">
+                            {listing.buyer_reputation.tier === 'TRUSTED' ? 'Trusted' : 'Reliable'}
+                          </span>
+                        )}
+                      </div>
+                      {listing.buyer_reputation.total_as_buyer > 0 && (
+                        <div className="ml-8 text-[10px] font-mono text-stone-600 space-y-0.5">
+                          {listing.buyer_reputation.avg_release_minutes !== null && (
+                            <p>Avg release: {listing.buyer_reputation.avg_release_minutes} min</p>
+                          )}
+                          <p>Payment rate: {listing.buyer_reputation.payment_rate}%</p>
+                        </div>
+                      )}
                     </div>
-                    <span className="text-xs font-mono text-stone-500">
-                      {listing.agent?.name || 'Unknown'}
-                    </span>
-                    {tierBadge && (
-                      <span className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${tierBadge.className}`}>
-                        {tierBadge.label}
+                  ) : (
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-6 h-6 rounded-full bg-[#c9a882]/20 border border-[#c9a882]/40 flex items-center justify-center text-[#c9a882] font-mono text-xs font-bold">
+                        {listing.agent?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <span className="text-xs font-mono text-stone-500">
+                        {listing.agent?.name || 'Unknown'}
                       </span>
-                    )}
-                    {listing.agent?.transaction_count > 0 && (
-                      <span className="text-[10px] font-mono text-stone-600">
-                        {listing.agent.transaction_count} txns
-                      </span>
-                    )}
-                  </div>
+                      {tierBadge && (
+                        <span className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${tierBadge.className}`}>
+                          {tierBadge.label}
+                        </span>
+                      )}
+                      {listing.agent?.transaction_count > 0 && (
+                        <span className="text-[10px] font-mono text-stone-600">
+                          {listing.agent.transaction_count} txns
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between pt-4 border-t border-stone-800">
                     <div>

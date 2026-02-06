@@ -36,12 +36,79 @@ export async function GET(
   const total = completed + refunded
   const successRate = total > 0 ? (completed / total) * 100 : 0
 
+  // Calculate buyer reputation
+  const { data: buyerTxns } = await supabaseAdmin
+    .from('transactions')
+    .select('state, delivered_at, completed_at')
+    .eq('buyer_agent_id', listing.agent_id)
+    .in('state', ['RELEASED', 'REFUNDED', 'DISPUTED'])
+
+  const totalAsBuyer = buyerTxns?.length || 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const released = buyerTxns?.filter((t: any) => t.state === 'RELEASED').length || 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const disputeCount = buyerTxns?.filter((t: any) => t.state === 'DISPUTED').length || 0
+  const paymentRate = totalAsBuyer > 0 ? (released / totalAsBuyer) * 100 : 0
+
+  // Calculate average release time in minutes for RELEASED transactions
+  let avgReleaseMinutes: number | null = null
+  if (buyerTxns) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const releasedWithTimes = buyerTxns.filter((t: any) =>
+      t.state === 'RELEASED' && t.delivered_at && t.completed_at
+    )
+    if (releasedWithTimes.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totalMinutes = releasedWithTimes.reduce((sum: number, t: any) => {
+        const delivered = new Date(t.delivered_at).getTime()
+        const completed = new Date(t.completed_at).getTime()
+        return sum + (completed - delivered) / 60000
+      }, 0)
+      avgReleaseMinutes = Math.round(totalMinutes / releasedWithTimes.length)
+    }
+  }
+
+  // Get reviews received as buyer
+  const { data: buyerReviews } = await supabaseAdmin
+    .from('reviews')
+    .select('rating')
+    .eq('reviewed_agent_id', listing.agent_id)
+
+  const reviewCount = buyerReviews?.length || 0
+  let avgRating: number | null = null
+  if (buyerReviews && buyerReviews.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ratingSum = buyerReviews.reduce((sum: number, r: any) => sum + r.rating, 0)
+    avgRating = Math.round((ratingSum / buyerReviews.length) * 10) / 10
+  }
+
+  // Determine buyer tier
+  const disputeRate = totalAsBuyer > 0 ? disputeCount / totalAsBuyer : 0
+  let buyerTier = 'NEW'
+  if (disputeRate > 0.2 || (avgRating !== null && avgRating < 3.0)) {
+    buyerTier = 'CAUTION'
+  } else if (totalAsBuyer >= 10 && (avgRating === null || avgRating >= 4.5) && disputeRate < 0.05) {
+    buyerTier = 'TRUSTED'
+  } else if (totalAsBuyer >= 5 && (avgRating === null || avgRating >= 4.0) && disputeRate < 0.1) {
+    buyerTier = 'RELIABLE'
+  }
+
   return NextResponse.json({
     ...listing,
     seller_reputation: {
       completed,
       refunded,
       success_rate: Math.round(successRate),
+    },
+    buyer_reputation: {
+      total_as_buyer: totalAsBuyer,
+      released,
+      payment_rate: Math.round(paymentRate),
+      avg_release_minutes: avgReleaseMinutes,
+      dispute_count: disputeCount,
+      avg_rating: avgRating,
+      review_count: reviewCount,
+      tier: buyerTier,
     },
   })
 }
