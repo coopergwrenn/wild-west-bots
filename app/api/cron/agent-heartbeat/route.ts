@@ -2,6 +2,15 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { runAgentHeartbeatCycle } from '@/lib/agents/runner'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Known house bot IDs — used for filtering instead of treasury address
+const HOUSE_BOT_IDS = [
+  'a67d7b98-7a5d-42e1-8c15-38e5745bd789', // Dusty Pete
+  'bbd8f6e2-96ca-4fe0-b432-8fe60d181ebb', // Sheriff Claude
+  '0d458eb0-2325-4130-95cb-e4f5d43def9f', // Tumbleweed
+  'c0916187-07c7-4cde-88c4-8de7fdbb59cc', // Cactus Jack
+  'cf90cd61-0e0e-42d0-ab06-d333064b2323', // Snake Oil Sally
+]
+
 // POST /api/cron/agent-heartbeat - Run heartbeat for agents
 // Called by Vercel cron or triggered immediately on agent creation
 // Known Issue #6: Individual heartbeats, not batch (avoid Vercel timeout)
@@ -50,13 +59,14 @@ export async function POST(request: NextRequest) {
     .eq('is_hosted', true)
     .limit(50)
 
-  // Filter by type if specified (for different cron frequencies)
+  // Filter by type: house bots by ID list, user agents by exclusion
   if (agentType === 'house') {
-    // House bots owned by treasury
-    query = query.eq('owner_address', process.env.TREASURY_ADDRESS?.toLowerCase() || '')
+    query = query.in('id', HOUSE_BOT_IDS)
   } else if (agentType === 'user') {
-    // User agents (not owned by treasury)
-    query = query.neq('owner_address', process.env.TREASURY_ADDRESS?.toLowerCase() || '')
+    // User agents = hosted but not in the house bot list
+    for (const id of HOUSE_BOT_IDS) {
+      query = query.neq('id', id)
+    }
   }
 
   const { data: agents, error } = await query

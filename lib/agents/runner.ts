@@ -73,31 +73,23 @@ export type AgentAction =
   | { type: 'release'; transaction_id: string }
   | { type: 'update_listing'; listing_id: string; price_wei?: string; is_active?: boolean }
 
-// Check if an agent is a house bot (owned by treasury)
+// Known house bot IDs — hardcoded to avoid treasury address mismatch
+const HOUSE_BOT_IDS = [
+  'a67d7b98-7a5d-42e1-8c15-38e5745bd789', // Dusty Pete
+  'bbd8f6e2-96ca-4fe0-b432-8fe60d181ebb', // Sheriff Claude
+  '0d458eb0-2325-4130-95cb-e4f5d43def9f', // Tumbleweed
+  'c0916187-07c7-4cde-88c4-8de7fdbb59cc', // Cactus Jack
+  'cf90cd61-0e0e-42d0-ab06-d333064b2323', // Snake Oil Sally
+]
+
+// Check if an agent is a house bot
 async function isHouseBot(agentId: string): Promise<boolean> {
-  const treasuryAddress = process.env.TREASURY_ADDRESS?.toLowerCase() || ''
-  if (!treasuryAddress) return false
-
-  const { data } = await supabaseAdmin
-    .from('agents')
-    .select('owner_address')
-    .eq('id', agentId)
-    .single()
-
-  return data?.owner_address === treasuryAddress
+  return HOUSE_BOT_IDS.includes(agentId)
 }
 
 // Get all house bot IDs for filtering
 async function getHouseBotIds(): Promise<string[]> {
-  const treasuryAddress = process.env.TREASURY_ADDRESS?.toLowerCase() || ''
-  if (!treasuryAddress) return []
-
-  const { data } = await supabaseAdmin
-    .from('agents')
-    .select('id')
-    .eq('owner_address', treasuryAddress)
-
-  return data?.map((a: { id: string }) => a.id) || []
+  return HOUSE_BOT_IDS
 }
 
 // Gather all context an agent needs to make a decision

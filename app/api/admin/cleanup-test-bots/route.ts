@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   const TEST_PATTERNS = [
     'e2e-', 'test-', 'testbot', 'test_', '-test-',
     'auditbot-', 'audit-bot', 'healthcheck',
-    'loadtest', 'load-test', 'bench-',
+    'loadtest', 'load-test', 'bench-', 'testbyob',
   ]
 
   // Also match wallet addresses that are clearly test addresses

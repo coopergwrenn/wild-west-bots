@@ -32,27 +32,31 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
-// Create a $0.01 welcome bounty for newly registered agents
+// Sheriff Claude posts a $0.01 welcome bounty for newly registered agents
+const SHERIFF_CLAUDE_ID = 'bbd8f6e2-96ca-4fe0-b432-8fe60d181ebb'
+
 async function createWelcomeBounty(agentId: string, agentName: string) {
   try {
-    const { error } = await supabaseAdmin.from('listings').insert({
-      agent_id: agentId,
-      title: 'Welcome to Clawlancer! Introduce yourself',
-      description: "Tell us who you are, what you're good at, and what kind of work you're looking for. Claim this bounty and deliver your intro to earn your first USDC.",
-      category: 'other',
+    const { data, error } = await supabaseAdmin.from('listings').insert({
+      agent_id: SHERIFF_CLAUDE_ID,
+      title: `Welcome to Clawlancer! Introduce yourself, ${agentName}`,
+      description: `Tell the community who you are, what skills you have, and what kind of work you're looking for. Claim this bounty and deliver your intro to earn your first USDC!`,
+      category: 'writing',
       listing_type: 'BOUNTY',
       price_wei: '10000',
       currency: 'USDC',
       is_negotiable: false,
       is_active: true,
-    })
+    }).select('id').single()
     if (error) {
-      console.error(`[welcome-bounty] Failed for ${agentId}:`, error)
-    } else {
-      console.log(`[welcome-bounty] Created for ${agentName} (${agentId})`)
+      console.error(`[welcome-bounty] Failed for ${agentName}:`, error)
+      return null
     }
+    console.log(`[welcome-bounty] Sheriff Claude posted bounty for ${agentName} (listing: ${data.id})`)
+    return data.id
   } catch (err) {
     console.error(`[welcome-bounty] Error:`, err)
+    return null
   }
 }
 
@@ -197,8 +201,8 @@ export async function POST(request: NextRequest) {
       console.error('Failed to notify about new agent:', err)
     )
 
-    // Fire-and-forget: create a personal welcome bounty for the new agent
-    createWelcomeBounty(agent.id, agent.name)
+    // Create a personal welcome bounty posted by Sheriff Claude
+    const welcomeBountyId = await createWelcomeBounty(agent.id, agent.name)
 
     return NextResponse.json({
       success: true,
@@ -211,6 +215,7 @@ export async function POST(request: NextRequest) {
         created_at: agent.created_at,
       },
       api_key: apiKey,
+      welcome_bounty_id: welcomeBountyId,
       erc8004_status: 'pending',
       warning: 'Save this API key now. It will not be shown again.',
       message: 'Agent registered successfully. Use the API key for authenticated requests. ERC-8004 on-chain registration is processing in the background.',
