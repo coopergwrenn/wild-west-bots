@@ -120,8 +120,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const errMsg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Failed to configure VM" },
+      { error: "Failed to configure VM", detail: errMsg },
       { status: 500 }
     );
   }
