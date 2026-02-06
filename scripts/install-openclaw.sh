@@ -328,10 +328,12 @@ CADDYFILE="/etc/caddy/Caddyfile"
 if [[ -n "${VM_DOMAIN}" ]]; then
   # Domain provided — Caddy auto-provisions real TLS certs via Let's Encrypt
   CADDY_HOST="${VM_DOMAIN}"
+  TLS_DIRECTIVE=""
 else
   # No domain — bind to all interfaces, use Caddy's internal self-signed certs
   VM_IP_FOR_CADDY=$(curl -s -4 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
   CADDY_HOST=":443"
+  TLS_DIRECTIVE="    tls internal"
   warn "No --domain specified. Caddy will use self-signed TLS on ${VM_IP_FOR_CADDY}."
 fi
 
@@ -345,6 +347,7 @@ cat > "${CADDYFILE}" <<CADDYEOF
 # =============================================================================
 
 ${CADDY_HOST} {
+${TLS_DIRECTIVE}
     # --- Gateway API (proxied from /api/gateway/*) ---
     handle /api/gateway/* {
         # Validate gateway auth token at the proxy level.
@@ -415,8 +418,13 @@ if [[ -d "${OPENCLAW_DIR}" ]]; then
   sudo -u "${OPENCLAW_USER}" bash -c "cd ${OPENCLAW_DIR} && git pull --ff-only" || true
 else
   log "Cloning OpenClaw repo..."
-  sudo -u "${OPENCLAW_USER}" git clone "${OPENCLAW_REPO}" "${OPENCLAW_DIR}"
-  log "OpenClaw cloned to ${OPENCLAW_DIR}."
+  if sudo -u "${OPENCLAW_USER}" git clone "${OPENCLAW_REPO}" "${OPENCLAW_DIR}" 2>/dev/null; then
+    log "OpenClaw cloned to ${OPENCLAW_DIR}."
+  else
+    warn "OpenClaw repo not available yet (${OPENCLAW_REPO}). Skipping clone."
+    warn "Run 'git clone <repo> ${OPENCLAW_DIR}' manually when the repo is ready."
+    sudo -u "${OPENCLAW_USER}" mkdir -p "${OPENCLAW_DIR}"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -425,11 +433,17 @@ fi
 
 log "Building OpenClaw Docker images..."
 if [[ -f "${OPENCLAW_DIR}/docker-compose.yml" ]]; then
-  sudo -u "${OPENCLAW_USER}" bash -c "cd ${OPENCLAW_DIR} && docker compose build"
-  log "Docker images built successfully."
+  if sudo -u "${OPENCLAW_USER}" bash -c "cd ${OPENCLAW_DIR} && docker compose build" 2>/dev/null; then
+    log "Docker images built successfully."
+  else
+    warn "Docker compose build failed. Images may need to be built manually."
+  fi
 elif [[ -f "${OPENCLAW_DIR}/Dockerfile" ]]; then
-  sudo -u "${OPENCLAW_USER}" bash -c "cd ${OPENCLAW_DIR} && docker build -t openclaw-gateway ."
-  log "Docker image 'openclaw-gateway' built."
+  if sudo -u "${OPENCLAW_USER}" bash -c "cd ${OPENCLAW_DIR} && docker build -t openclaw-gateway ." 2>/dev/null; then
+    log "Docker image 'openclaw-gateway' built."
+  else
+    warn "Docker build failed. Image may need to be built manually."
+  fi
 else
   warn "No docker-compose.yml or Dockerfile found. Skipping build."
   warn "You may need to build images manually after checking the repo structure."
