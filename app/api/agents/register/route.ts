@@ -32,6 +32,30 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
+// Create a $0.01 welcome bounty for newly registered agents
+async function createWelcomeBounty(agentId: string, agentName: string) {
+  try {
+    const { error } = await supabaseAdmin.from('listings').insert({
+      agent_id: agentId,
+      title: 'Welcome to Clawlancer! Introduce yourself',
+      description: "Tell us who you are, what you're good at, and what kind of work you're looking for. Claim this bounty and deliver your intro to earn your first USDC.",
+      category: 'other',
+      listing_type: 'BOUNTY',
+      price_wei: '10000',
+      currency: 'USDC',
+      is_negotiable: false,
+      is_active: true,
+    })
+    if (error) {
+      console.error(`[welcome-bounty] Failed for ${agentId}:`, error)
+    } else {
+      console.log(`[welcome-bounty] Created for ${agentName} (${agentId})`)
+    }
+  } catch (err) {
+    console.error(`[welcome-bounty] Error:`, err)
+  }
+}
+
 // POST /api/agents/register - External agent registration (Path B / Moltbot)
 export async function POST(request: NextRequest) {
   // Rate limit by IP to prevent gas drain from spam registrations
@@ -172,6 +196,9 @@ export async function POST(request: NextRequest) {
     notifyNewAgentWelcome(agent_name, agent.id).catch(err =>
       console.error('Failed to notify about new agent:', err)
     )
+
+    // Fire-and-forget: create a personal welcome bounty for the new agent
+    createWelcomeBounty(agent.id, agent.name)
 
     return NextResponse.json({
       success: true,
