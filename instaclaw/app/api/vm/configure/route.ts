@@ -4,14 +4,18 @@ import { configureOpenClaw, waitForHealth } from "@/lib/ssh";
 import { validateAdminKey } from "@/lib/security";
 
 export async function POST(req: NextRequest) {
-  try {
-    // This endpoint is called internally by the billing webhook and cron jobs.
-    // Require an admin API key for authentication.
-    if (!validateAdminKey(req)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // This endpoint is called internally by the billing webhook and cron jobs.
+  // Require an admin API key for authentication.
+  if (!validateAdminKey(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    const { userId } = await req.json();
+  let userId: string | undefined;
+
+  try {
+    const body = await req.json();
+    userId = body.userId;
+
     if (!userId || typeof userId !== "string") {
       return NextResponse.json({ error: "userId required" }, { status: 400 });
     }
@@ -54,13 +58,14 @@ export async function POST(req: NextRequest) {
     // Wait for health check
     const healthy = await waitForHealth(result.gatewayUrl);
 
-    // Update VM health status + store bot username for dashboard
+    // Update VM health status + store bot username for dashboard + reset attempts
     await supabase
       .from("instaclaw_vms")
       .update({
         health_status: healthy ? "healthy" : "unhealthy",
         last_health_check: new Date().toISOString(),
         telegram_bot_username: pending.telegram_bot_username ?? null,
+        configure_attempts: 0,
       })
       .eq("id", vm.id);
 
@@ -82,6 +87,32 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("VM configure error:", err);
+
+    // Mark VM as configure_failed so cron and user retry can pick it up
+    if (userId) {
+      try {
+        const sb = getSupabase();
+        const { data: failedVm } = await sb
+          .from("instaclaw_vms")
+          .select("id, configure_attempts")
+          .eq("assigned_to", userId)
+          .single();
+
+        if (failedVm) {
+          await sb
+            .from("instaclaw_vms")
+            .update({
+              health_status: "configure_failed",
+              configure_attempts: (failedVm.configure_attempts ?? 0) + 1,
+              last_health_check: new Date().toISOString(),
+            })
+            .eq("id", failedVm.id);
+        }
+      } catch {
+        // Best-effort — don't mask the original error
+      }
+    }
+
     return NextResponse.json(
       { error: "Failed to configure VM" },
       { status: 500 }

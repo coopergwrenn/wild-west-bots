@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, AlertCircle } from "lucide-react";
+import { Check, Loader2, AlertCircle, RotateCcw } from "lucide-react";
 
 type StepStatus = "pending" | "active" | "done" | "error";
 
@@ -11,6 +11,8 @@ interface DeployStep {
   label: string;
   status: StepStatus;
 }
+
+const MAX_POLL_ATTEMPTS = 60; // 2 minutes at 2s intervals
 
 export default function DeployingPage() {
   const router = useRouter();
@@ -21,8 +23,11 @@ export default function DeployingPage() {
     { id: "telegram", label: "Connecting Telegram bot", status: "pending" },
     { id: "health", label: "Health check", status: "pending" },
   ]);
-  const [showSlowMessage, setShowSlowMessage] = useState(false);
+  const [configureFailed, setConfigureFailed] = useState(false);
+  const [configureAttempts, setConfigureAttempts] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const [pollCount, setPollCount] = useState(0);
+  const [polling, setPolling] = useState(true);
 
   const updateStep = useCallback(
     (id: string, status: StepStatus) => {
@@ -33,22 +38,40 @@ export default function DeployingPage() {
     []
   );
 
+  // Polling effect
   useEffect(() => {
-    const timer = setTimeout(() => setShowSlowMessage(true), 120_000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!polling) return;
 
-  useEffect(() => {
     const interval = setInterval(async () => {
-      setPollCount((c) => c + 1);
+      setPollCount((c) => {
+        const next = c + 1;
+        if (next >= MAX_POLL_ATTEMPTS) {
+          setPolling(false);
+          setConfigureFailed(true);
+          setSteps((prev) =>
+            prev.map((s) =>
+              s.status === "active" ? { ...s, status: "error" } : s
+            )
+          );
+        }
+        return next;
+      });
 
       try {
         const res = await fetch("/api/vm/status");
         const data = await res.json();
 
         if (data.status === "assigned" && data.vm) {
-          // VM is assigned
           updateStep("assign", "done");
+
+          // Check for configure failure
+          if (data.vm.healthStatus === "configure_failed") {
+            setConfigureFailed(true);
+            setConfigureAttempts(data.vm.configureAttempts ?? 0);
+            setPolling(false);
+            updateStep("configure", "error");
+            return;
+          }
 
           if (data.vm.gatewayUrl) {
             updateStep("configure", "done");
@@ -61,8 +84,7 @@ export default function DeployingPage() {
             updateStep("configure", "done");
             updateStep("telegram", "done");
             updateStep("health", "done");
-
-            // All done — redirect
+            setPolling(false);
             clearInterval(interval);
             setTimeout(() => router.push("/dashboard"), 1500);
           }
@@ -75,7 +97,44 @@ export default function DeployingPage() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [router, updateStep, pollCount]);
+  }, [router, updateStep, polling]);
+
+  async function handleRetry() {
+    setRetrying(true);
+    setConfigureFailed(false);
+
+    // Reset step statuses
+    setSteps([
+      { id: "payment", label: "Payment confirmed", status: "done" },
+      { id: "assign", label: "Assigning server", status: "done" },
+      { id: "configure", label: "Configuring OpenClaw", status: "active" },
+      { id: "telegram", label: "Connecting Telegram bot", status: "pending" },
+      { id: "health", label: "Health check", status: "pending" },
+    ]);
+
+    try {
+      const res = await fetch("/api/vm/retry-configure", { method: "POST" });
+      const data = await res.json();
+
+      if (res.ok && data.retried) {
+        // Retry succeeded — resume polling to wait for health check
+        setPollCount(0);
+        setPolling(true);
+      } else {
+        // Retry failed
+        setConfigureFailed(true);
+        setConfigureAttempts((prev) => prev + 1);
+        updateStep("configure", "error");
+      }
+    } catch {
+      setConfigureFailed(true);
+      updateStep("configure", "error");
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  const maxAttemptsReached = configureAttempts >= 3;
 
   return (
     <div className="space-y-8 text-center">
@@ -117,6 +176,8 @@ export default function DeployingPage() {
                     ? "var(--success)"
                     : step.status === "active"
                     ? "#ffffff"
+                    : step.status === "error"
+                    ? "var(--error)"
                     : "var(--muted)",
               }}
             >
@@ -126,13 +187,55 @@ export default function DeployingPage() {
         ))}
       </div>
 
-      {showSlowMessage && (
+      {/* Error state with retry */}
+      {configureFailed && !retrying && (
+        <div className="glass rounded-xl p-6 max-w-sm mx-auto space-y-4">
+          {maxAttemptsReached ? (
+            <>
+              <p className="text-sm font-medium" style={{ color: "var(--error)" }}>
+                Configuration failed after multiple attempts.
+              </p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                Please contact support at{" "}
+                <a
+                  href="mailto:cooper@clawlancer.com"
+                  className="underline text-white hover:opacity-80 transition-opacity"
+                >
+                  cooper@clawlancer.com
+                </a>
+                {" "}and we&apos;ll get your instance running.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium" style={{ color: "var(--error)" }}>
+                Configuration hit a snag.
+              </p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                This sometimes happens during initial setup. Retrying usually
+                fixes it.
+              </p>
+              <button
+                onClick={handleRetry}
+                className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                style={{ background: "#ffffff", color: "#000000" }}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Retry Configuration
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Retrying spinner */}
+      {retrying && (
         <div
-          className="glass rounded-xl p-4 text-sm"
+          className="glass rounded-xl p-4 text-sm flex items-center justify-center gap-2"
           style={{ color: "var(--muted)" }}
         >
-          Taking longer than usual. We&apos;ll email you when your instance is
-          ready. You can safely close this page.
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Retrying configuration...
         </div>
       )}
     </div>

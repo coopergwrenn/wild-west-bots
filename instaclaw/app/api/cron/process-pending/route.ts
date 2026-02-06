@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { sendVMReadyEmail } from "@/lib/email";
 
+const MAX_CONFIGURE_ATTEMPTS = 3;
+
 export async function GET(req: NextRequest) {
   // Verify cron secret
   const authHeader = req.headers.get("authorization");
@@ -10,56 +12,133 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = getSupabase();
+  let assigned = 0;
+  let retried = 0;
 
-  // Get pending users ordered by creation date
+  // -----------------------------------------------------------------
+  // Pass 1: Assign VMs to pending users who don't have one yet
+  // -----------------------------------------------------------------
   const { data: pending } = await supabase
     .from("instaclaw_pending_users")
     .select("*, instaclaw_users!inner(email)")
     .order("created_at", { ascending: true })
     .limit(10);
 
-  if (!pending?.length) {
-    return NextResponse.json({ processed: 0 });
-  }
+  if (pending?.length) {
+    for (const p of pending) {
+      // Skip if user already has a VM assigned (they're waiting on configure, not assignment)
+      const { data: existingVm } = await supabase
+        .from("instaclaw_vms")
+        .select("id")
+        .eq("assigned_to", p.user_id)
+        .single();
 
-  let assigned = 0;
+      if (existingVm) continue;
 
-  for (const p of pending) {
-    // Try to assign a VM
-    const { data: vm } = await supabase.rpc("instaclaw_assign_vm", {
-      p_user_id: p.user_id,
-    });
-
-    if (!vm) break; // No more VMs available
-
-    // Trigger VM configuration
-    try {
-      await fetch(`${process.env.NEXTAUTH_URL}/api/vm/configure`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Key": process.env.ADMIN_API_KEY ?? "",
-        },
-        body: JSON.stringify({ userId: p.user_id }),
+      // Try to assign a VM
+      const { data: vm } = await supabase.rpc("instaclaw_assign_vm", {
+        p_user_id: p.user_id,
       });
 
-      // Send notification email
-      const userEmail = (p as Record<string, unknown>).instaclaw_users as { email: string };
-      if (userEmail?.email) {
-        await sendVMReadyEmail(
-          userEmail.email,
-          `${process.env.NEXTAUTH_URL}/dashboard`
+      if (!vm) break; // No more VMs available
+
+      // Trigger VM configuration
+      try {
+        const configRes = await fetch(
+          `${process.env.NEXTAUTH_URL}/api/vm/configure`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Admin-Key": process.env.ADMIN_API_KEY ?? "",
+            },
+            body: JSON.stringify({ userId: p.user_id }),
+          }
+        );
+
+        if (configRes.ok) {
+          // Send notification email
+          const userEmail = (p as Record<string, unknown>).instaclaw_users as {
+            email: string;
+          };
+          if (userEmail?.email) {
+            await sendVMReadyEmail(
+              userEmail.email,
+              `${process.env.NEXTAUTH_URL}/dashboard`
+            );
+          }
+          assigned++;
+        }
+      } catch (err) {
+        console.error(`Failed to configure VM for user ${p.user_id}:`, err);
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Pass 2: Retry failed configurations (max 3 attempts)
+  // -----------------------------------------------------------------
+  const { data: failedVms } = await supabase
+    .from("instaclaw_vms")
+    .select("assigned_to, configure_attempts")
+    .eq("health_status", "configure_failed")
+    .lt("configure_attempts", MAX_CONFIGURE_ATTEMPTS)
+    .not("assigned_to", "is", null)
+    .limit(10);
+
+  if (failedVms?.length) {
+    for (const vm of failedVms) {
+      // Verify pending config still exists (needed by configure endpoint)
+      const { data: hasPending } = await supabase
+        .from("instaclaw_pending_users")
+        .select("id")
+        .eq("user_id", vm.assigned_to)
+        .single();
+
+      if (!hasPending) continue;
+
+      try {
+        const configRes = await fetch(
+          `${process.env.NEXTAUTH_URL}/api/vm/configure`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Admin-Key": process.env.ADMIN_API_KEY ?? "",
+            },
+            body: JSON.stringify({ userId: vm.assigned_to }),
+          }
+        );
+
+        if (configRes.ok) {
+          retried++;
+
+          // Send notification email
+          const { data: user } = await supabase
+            .from("instaclaw_users")
+            .select("email")
+            .eq("id", vm.assigned_to)
+            .single();
+
+          if (user?.email) {
+            await sendVMReadyEmail(
+              user.email,
+              `${process.env.NEXTAUTH_URL}/dashboard`
+            );
+          }
+        }
+      } catch (err) {
+        console.error(
+          `Failed to retry configure for user ${vm.assigned_to}:`,
+          err
         );
       }
-
-      assigned++;
-    } catch (err) {
-      console.error(`Failed to configure VM for user ${p.user_id}:`, err);
     }
   }
 
   return NextResponse.json({
-    pending: pending.length,
+    pending: pending?.length ?? 0,
     assigned,
+    retried,
   });
 }
