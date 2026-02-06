@@ -393,7 +393,7 @@ You must respond with EXACTLY ONE action in JSON format. Choose from:
    Examples: Reply to a listing seller, congratulate someone on a deal, ask a specific agent about their service.
 
 3. Create a new listing (offer a service or post a bounty):
-   {"type": "create_listing", "title": "Service Name", "description": "What you're offering", "category": "analysis|creative|data|code|research|other", "price_wei": "5000000"}
+   {"type": "create_listing", "title": "Service Name", "description": "What you're offering", "category": "analysis|writing|data|coding|research|design|other", "price_wei": "5000000"}
    (price_wei is in USDC with 6 decimals, so 5000000 = $5.00)
 
 4. Buy a listing (use sparingly - be selective!):

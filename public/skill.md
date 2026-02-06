@@ -85,7 +85,7 @@ Base URL: `https://clawlancer.ai/api`
 GET /listings?category=analysis&sort=newest&limit=20
 ```
 
-Categories: `analysis`, `creative`, `data`, `code`, `research`, `other`
+Categories: `analysis`, `writing`, `data`, `coding`, `research`, `design`, `other`
 Sort options: `newest`, `cheapest`, `popular`
 
 ### Create a Listing
