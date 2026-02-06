@@ -43,16 +43,6 @@ export default function OnboardPage() {
     }
   }, [step, walletAddress])
 
-  // Fetch gas promo status when reaching step 3
-  useEffect(() => {
-    if (step === 3) {
-      fetch('/api/gas-promo/status')
-        .then(res => res.json())
-        .then(data => setGasPromo(data))
-        .catch(() => {})
-    }
-  }, [step])
-
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profileSaveWarning, setProfileSaveWarning] = useState<string | null>(null)
@@ -62,6 +52,16 @@ export default function OnboardPage() {
   const [referralSource, setReferralSource] = useState('')
   const [gasPromo, setGasPromo] = useState<{ active: boolean; remaining_slots: number } | null>(null)
   const [gasFunded, setGasFunded] = useState<{ funded: boolean; tx_hash?: string } | null>(null)
+
+  // Fetch gas promo status when reaching step 2 (for preview) or step 3
+  useEffect(() => {
+    if (step >= 2 && !gasPromo) {
+      fetch('/api/gas-promo/status')
+        .then(res => res.json())
+        .then(data => setGasPromo(data))
+        .catch(() => {})
+    }
+  }, [step, gasPromo])
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
@@ -343,6 +343,21 @@ export default function OnboardPage() {
                 </button>
               </div>
 
+              {/* Gas promo preview */}
+              {gasPromo?.active && (
+                <div className="p-4 bg-green-900/10 border border-green-800/30 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-green-400 flex-shrink-0">&#10003;</span>
+                    <div>
+                      <p className="text-sm font-mono text-green-400 font-bold">Free gas included</p>
+                      <p className="text-xs font-mono text-stone-500 mt-1">
+                        When you complete registration, we&apos;ll send ~$0.10 ETH to your wallet — covers your first 10+ transactions. No wallet funding needed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="p-4 bg-red-900/20 border border-red-800 rounded">
                   <p className="text-sm font-mono text-red-400">{error}</p>
@@ -440,24 +455,41 @@ export default function OnboardPage() {
             {/* Funding Guide - conditional on gas promo */}
             {gasFunded?.funded ? (
               <div className="p-6 bg-green-900/10 border border-green-800/30 rounded-lg mb-8">
-                <h2 className="text-lg font-mono font-bold mb-2 text-green-400">Welcome bonus: ~$0.10 ETH sent for gas!</h2>
-                <p className="text-sm font-mono text-stone-400 mb-3">
-                  Enough for 10+ transactions on Base. Start claiming bounties now.
+                <h2 className="text-lg font-mono font-bold mb-3 text-green-400">Welcome bonus! We sent ~$0.10 ETH for gas.</h2>
+                <p className="text-sm font-mono text-stone-400 mb-4">
+                  You can now claim bounties and start earning (no wallet funding needed).
                 </p>
-                {gasFunded.tx_hash && (
-                  <a
-                    href={`https://basescan.org/tx/${gasFunded.tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs font-mono text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    View on Basescan →
-                  </a>
-                )}
+                <dl className="space-y-2 text-sm font-mono mb-4">
+                  <div className="flex justify-between">
+                    <dt className="text-stone-500">Amount</dt>
+                    <dd className="text-green-400">0.00004 ETH</dd>
+                  </div>
+                  {gasFunded.tx_hash && (
+                    <div className="flex justify-between">
+                      <dt className="text-stone-500">Transaction</dt>
+                      <dd>
+                        <a
+                          href={`https://basescan.org/tx/${gasFunded.tx_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          {gasFunded.tx_hash.slice(0, 10)}...{gasFunded.tx_hash.slice(-6)}
+                        </a>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <Link
+                  href="/marketplace"
+                  className="inline-block px-5 py-2.5 bg-green-800/40 border border-green-700/50 text-green-400 text-sm font-mono font-bold rounded hover:bg-green-800/60 transition-colors"
+                >
+                  Browse Bounties →
+                </Link>
               </div>
             ) : gasPromo?.active ? (
               <div className="p-6 bg-green-900/10 border border-green-800/30 rounded-lg mb-8">
-                <h2 className="text-lg font-mono font-bold mb-2 text-green-400">Gas is on us!</h2>
+                <h2 className="text-lg font-mono font-bold mb-2 text-green-400">Sending your welcome gas...</h2>
                 <p className="text-sm font-mono text-stone-400 mb-3">
                   Sending <strong className="text-green-300">~$0.10 ETH</strong> to your wallet — enough for 10+ transactions.
                 </p>
@@ -485,8 +517,14 @@ export default function OnboardPage() {
 
             <div className="flex flex-wrap gap-4">
               <Link
-                href="/dashboard"
+                href="/marketplace"
                 className="flex-1 px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors text-center"
+              >
+                Browse Bounties
+              </Link>
+              <Link
+                href="/dashboard"
+                className="flex-1 px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors text-center"
               >
                 Go to Dashboard
               </Link>
@@ -495,12 +533,6 @@ export default function OnboardPage() {
                 className="flex-1 px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors text-center"
               >
                 View API Docs
-              </Link>
-              <Link
-                href="/marketplace"
-                className="flex-1 px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors text-center"
-              >
-                Browse Marketplace
               </Link>
             </div>
           </div>

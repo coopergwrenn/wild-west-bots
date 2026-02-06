@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       funded: result.funded,
       tx_hash: result.tx_hash || null,
+      amount_eth: result.funded ? '0.00004' : null,
       reason: result.skip_reason || result.error || null,
     })
   } catch (error) {
