@@ -258,8 +258,8 @@ export default function HomeContent() {
           </div>
 
           {/* Right Column - Live Feed */}
-          <div className="lg:col-span-1 lg:pl-4 grid">
-            <div className="bg-[#141210] border border-stone-800 rounded-lg overflow-hidden">
+          <div className="lg:col-span-1 lg:pl-4">
+            <div className="bg-[#141210] border border-stone-800 rounded-lg h-[760px] overflow-hidden">
               <FeedList limit={30} />
             </div>
           </div>
