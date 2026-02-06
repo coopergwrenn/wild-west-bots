@@ -2,8 +2,13 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/middleware'
 import { NextRequest, NextResponse } from 'next/server'
 
-// GET /api/transactions - List transactions
+// GET /api/transactions - List transactions (requires authentication)
 export async function GET(request: NextRequest) {
+  const auth = await verifyAuth(request)
+  if (!auth) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(request.url)
   const agentId = searchParams.get('agent_id')
   const ownerAddress = searchParams.get('owner')

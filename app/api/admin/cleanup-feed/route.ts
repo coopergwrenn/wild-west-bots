@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-// POST /api/admin/cleanup-feed - Remove fake feed events
+// POST /api/admin/cleanup-feed - Remove fake/spam feed events
 export async function POST(request: NextRequest) {
   // Verify admin/system auth
   const authHeader = request.headers.get('authorization')
@@ -16,7 +16,14 @@ export async function POST(request: NextRequest) {
       .from('feed_events')
       .select('*', { count: 'exact', head: true })
 
-    // Step 2: Get all real transaction IDs
+    // Step 2: Delete broadcast spam (MESSAGE_SENT with null related_agent_id)
+    const { count: broadcastDeleted } = await supabaseAdmin
+      .from('feed_events')
+      .delete({ count: 'exact' })
+      .eq('event_type', 'MESSAGE_SENT')
+      .is('related_agent_id', null)
+
+    // Step 3: Get all real transaction IDs
     const { data: transactions } = await supabaseAdmin
       .from('transactions')
       .select('id, buyer_agent_id, seller_agent_id')
@@ -28,13 +35,17 @@ export async function POST(request: NextRequest) {
       ) || []
     )
 
-    // Step 3: Get all feed events
+    // Step 4: Get remaining feed events for dedup
     const { data: feedEvents } = await supabaseAdmin
       .from('feed_events')
-      .select('id, event_type, agent_id, related_agent_id, metadata')
+      .select('id, event_type, agent_id, related_agent_id, metadata, created_at')
+      .order('created_at', { ascending: false })
 
-    // Step 4: Identify fake events to delete
+    // Step 5: Identify fake/duplicate events
     const fakeEventIds: string[] = []
+
+    // Track seen transaction events for dedup (keep first, remove rest)
+    const seenTxEvents = new Map<string, string>() // key -> first event id
 
     interface FeedEvent {
       id: string
@@ -42,10 +53,11 @@ export async function POST(request: NextRequest) {
       agent_id: string
       related_agent_id: string | null
       metadata: { transaction_id?: string } | null
+      created_at: string
     }
 
     for (const event of (feedEvents || []) as FeedEvent[]) {
-      // Keep listing events (they're valid)
+      // Keep listing events
       if (event.event_type === 'LISTING_CREATED' || event.event_type === 'LISTING_UPDATED') {
         continue
       }
@@ -55,43 +67,59 @@ export async function POST(request: NextRequest) {
         continue
       }
 
-      // For transaction events, check if they have a real transaction
+      // Keep valid MESSAGE_SENT events (broadcast already deleted above)
+      if (event.event_type === 'MESSAGE_SENT') {
+        continue
+      }
+
+      // For transaction events: check validity and dedup
       if (event.event_type === 'TRANSACTION_CREATED' ||
           event.event_type === 'TRANSACTION_RELEASED' ||
           event.event_type === 'TRANSACTION_REFUNDED') {
 
-        // Check if metadata has a transaction_id that exists
         const txId = event.metadata?.transaction_id
         if (txId && realTransactionIds.has(txId)) {
-          continue // Keep this event
+          // Valid transaction — but dedup (keep newest per transaction+event_type)
+          const dedupKey = `${txId}-${event.event_type}`
+          if (seenTxEvents.has(dedupKey)) {
+            fakeEventIds.push(event.id) // Duplicate — delete older
+          } else {
+            seenTxEvents.set(dedupKey, event.id)
+          }
+          continue
         }
 
-        // Check if agent pair matches any real transaction
+        // Check agent pair match
         const agentPair = `${event.agent_id}-${event.related_agent_id}`
         const reversePair = `${event.related_agent_id}-${event.agent_id}`
         if (realAgentPairs.has(agentPair) || realAgentPairs.has(reversePair)) {
-          continue // Keep this event (likely valid)
+          // Valid pair — dedup
+          const dedupKey = `${agentPair}-${event.event_type}`
+          if (seenTxEvents.has(dedupKey)) {
+            fakeEventIds.push(event.id)
+          } else {
+            seenTxEvents.set(dedupKey, event.id)
+          }
+          continue
         }
 
-        // This is a fake event - mark for deletion
+        // No real transaction match — fake event
         fakeEventIds.push(event.id)
       }
     }
 
-    // Step 5: Delete fake events
-    if (fakeEventIds.length > 0) {
-      const { error: deleteError } = await supabaseAdmin
+    // Step 6: Delete fake/duplicate events in batches
+    let deletedCount = 0
+    for (let i = 0; i < fakeEventIds.length; i += 100) {
+      const batch = fakeEventIds.slice(i, i + 100)
+      const { count } = await supabaseAdmin
         .from('feed_events')
-        .delete()
-        .in('id', fakeEventIds)
-
-      if (deleteError) {
-        console.error('Failed to delete fake events:', deleteError)
-        return NextResponse.json({ error: 'Failed to delete fake events' }, { status: 500 })
-      }
+        .delete({ count: 'exact' })
+        .in('id', batch)
+      deletedCount += count || 0
     }
 
-    // Step 6: Get counts after cleanup
+    // Step 7: Final count
     const { count: afterCount } = await supabaseAdmin
       .from('feed_events')
       .select('*', { count: 'exact', head: true })
@@ -100,8 +128,9 @@ export async function POST(request: NextRequest) {
       success: true,
       before: beforeCount,
       after: afterCount,
-      deleted: fakeEventIds.length,
-      message: `Cleaned up ${fakeEventIds.length} fake feed events`,
+      broadcast_spam_deleted: broadcastDeleted || 0,
+      fake_events_deleted: deletedCount,
+      total_deleted: (broadcastDeleted || 0) + deletedCount,
     })
   } catch (err) {
     console.error('Cleanup error:', err)
