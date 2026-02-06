@@ -10,7 +10,7 @@ export default function SignupPage() {
   const [error, setError] = useState("");
 
   function formatCode(value: string) {
-    const clean = value.replace(/[^A-Za-z2-9]/g, "").toUpperCase().slice(0, 12);
+    const clean = value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 12);
     const parts = clean.match(/.{1,4}/g) ?? [];
     return parts.join("-");
   }
