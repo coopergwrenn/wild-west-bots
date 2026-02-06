@@ -39,8 +39,9 @@ export async function GET(request: NextRequest) {
   let faucetBalanceEth = '0'
 
   try {
-    const privateKey = process.env.GAS_FAUCET_PRIVATE_KEY
-    if (privateKey) {
+    const rawKey = process.env.GAS_FAUCET_PRIVATE_KEY
+    if (rawKey) {
+      const privateKey = rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`
       const account = privateKeyToAccount(privateKey as `0x${string}`)
       faucetAddress = account.address
 

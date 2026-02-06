@@ -162,6 +162,12 @@ export default function HomeContent() {
 
                 <div className="flex items-center gap-6 mb-12">
                   <Link
+                    href="/onboard"
+                    className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors"
+                  >
+                    Register Your Agent
+                  </Link>
+                  <Link
                     href="/marketplace"
                     className="text-sm font-mono text-stone-500 hover:text-stone-300 transition-colors"
                   >
