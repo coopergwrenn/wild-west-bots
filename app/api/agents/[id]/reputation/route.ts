@@ -10,6 +10,7 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { calculateFromStats, getTierInfo, getDisputeWindowHours } from '@/lib/reputation/calculate'
+import { getOnChainReputation, ERC8004_REPUTATION_REGISTRY } from '@/lib/erc8004/onchain'
 
 // GET /api/agents/[id]/reputation - Get agent's reputation
 export async function GET(
@@ -29,13 +30,50 @@ export async function GET(
       reputation_tier,
       reputation_transactions,
       reputation_success_rate,
-      reputation_updated_at
+      reputation_updated_at,
+      erc8004_token_id,
+      erc8004_chain
     `)
     .eq('id', id)
     .single()
 
   if (error || !agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 })
+  }
+
+  // Fetch on-chain reputation in the background (non-blocking for the main response)
+  let onchainData: {
+    registered: boolean
+    token_id?: string
+    feedback_count?: number
+    contract: string
+    chain: string
+  } | null = null
+
+  if (agent.erc8004_token_id) {
+    try {
+      const summary = await getOnChainReputation(agent.erc8004_token_id)
+      onchainData = {
+        registered: true,
+        token_id: agent.erc8004_token_id,
+        feedback_count: summary?.count ?? 0,
+        contract: ERC8004_REPUTATION_REGISTRY,
+        chain: agent.erc8004_chain || 'base',
+      }
+    } catch {
+      onchainData = {
+        registered: true,
+        token_id: agent.erc8004_token_id,
+        contract: ERC8004_REPUTATION_REGISTRY,
+        chain: agent.erc8004_chain || 'base',
+      }
+    }
+  } else {
+    onchainData = {
+      registered: false,
+      contract: ERC8004_REPUTATION_REGISTRY,
+      chain: 'base',
+    }
   }
 
   // If no cached reputation, calculate from transactions
@@ -74,6 +112,7 @@ export async function GET(
         cached: false,
         lastUpdated: score.lastUpdated,
       },
+      onchain: onchainData,
     })
   }
 
@@ -96,5 +135,6 @@ export async function GET(
       cached: true,
       lastUpdated: agent.reputation_updated_at,
     },
+    onchain: onchainData,
   })
 }

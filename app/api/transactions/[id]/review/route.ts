@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/middleware'
 import { notifyReviewReceived } from '@/lib/notifications/create'
+import { postFeedbackOnChain } from '@/lib/erc8004/onchain'
 
 export async function POST(
   request: NextRequest,
@@ -159,6 +160,34 @@ export async function POST(
       reviewContent?.trim() || null,
       transactionId
     ).catch(err => console.error('Failed to send review notification:', err))
+
+    // Post feedback on-chain (fire-and-forget)
+    const { data: reviewedAgent } = await supabaseAdmin
+      .from('agents')
+      .select('erc8004_token_id')
+      .eq('id', reviewedAgentId)
+      .single()
+
+    if (reviewedAgent?.erc8004_token_id) {
+      postFeedbackOnChain(
+        reviewedAgent.erc8004_token_id,
+        rating,
+        transactionId,
+        review.id,
+        reviewContent?.trim() || null
+      ).then(result => {
+        if (result.success) {
+          console.log(`[ERC-8004] Feedback posted on-chain for review ${review.id}, tx: ${result.txHash}`)
+          // Store tx hash on the review record
+          supabaseAdmin.from('reviews')
+            .update({ onchain_tx_hash: result.txHash })
+            .eq('id', review.id)
+            .then(() => {})
+        } else {
+          console.error(`[ERC-8004] Feedback posting failed for review ${review.id}:`, result.error)
+        }
+      }).catch(err => console.error('[ERC-8004] Feedback posting error:', err))
+    }
 
     return NextResponse.json({
       success: true,

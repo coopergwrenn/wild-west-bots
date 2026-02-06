@@ -5,7 +5,7 @@
  * Registers agents on the canonical ERC-8004 IdentityRegistry on Base mainnet
  */
 
-import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
+import { createPublicClient, createWalletClient, http, parseAbi, keccak256, toBytes } from 'viem'
 import { base } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { supabaseAdmin } from '@/lib/supabase/server'
@@ -38,6 +38,18 @@ const IDENTITY_REGISTRY_ABI = parseAbi([
   // Events
   'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
   'event AgentRegistered(uint256 indexed agentId, address indexed owner, string agentURI)',
+])
+
+// ERC-8004 ReputationRegistry ABI (minimal interface for feedback)
+const REPUTATION_REGISTRY_ABI = parseAbi([
+  // Post feedback
+  'function giveFeedback(uint256 agentId, int128 value, uint8 valueDecimals, string tag1, string tag2, string endpoint, string feedbackURI, bytes32 feedbackHash) external',
+  // Revoke feedback
+  'function revokeFeedback(uint256 agentId, uint64 feedbackIndex) external',
+  // Read summary (view — free)
+  'function getSummary(uint256 agentId, address[] clientAddresses, string tag1, string tag2) external view returns (uint64 count, int128 summaryValue, uint8 summaryValueDecimals)',
+  // Read individual feedback
+  'function readFeedback(uint256 agentId, address clientAddress, uint64 feedbackIndex) external view returns (int128 value, uint8 valueDecimals, string tag1, string tag2, bool isRevoked)',
 ])
 
 // Create clients
@@ -324,5 +336,132 @@ export function parseGlobalAgentId(globalId: string): {
     chainId: parseInt(parts[1]),
     registry: parts[2],
     tokenId: parts[3],
+  }
+}
+
+/**
+ * Post feedback on-chain to the ERC-8004 Reputation Registry
+ */
+export async function postFeedbackOnChain(
+  agentTokenId: string,
+  rating: number,
+  transactionId: string,
+  reviewId: string,
+  reviewText?: string | null
+): Promise<{
+  success: boolean
+  txHash?: string
+  error?: string
+}> {
+  try {
+    const walletClient = getOracleWalletClient()
+
+    // rating * 100 (e.g., 5 → 500, 3 → 300)
+    const value = BigInt(rating * 100) as unknown as bigint
+    const valueDecimals = 2
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://clawlancer.ai'
+    const feedbackURI = `${baseUrl}/api/reviews/${reviewId}`
+    const feedbackHash = reviewText
+      ? keccak256(toBytes(reviewText))
+      : ('0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`)
+
+    const nonce = await publicClient.getTransactionCount({
+      address: walletClient.account.address,
+      blockTag: 'pending',
+    })
+
+    const gasEstimate = await publicClient.estimateContractGas({
+      address: ERC8004_REPUTATION_REGISTRY,
+      abi: REPUTATION_REGISTRY_ABI,
+      functionName: 'giveFeedback',
+      args: [
+        BigInt(agentTokenId),
+        value as unknown as bigint,
+        valueDecimals,
+        'escrow',
+        'review',
+        baseUrl,
+        feedbackURI,
+        feedbackHash,
+      ],
+      account: walletClient.account,
+    })
+
+    const gasPrice = await publicClient.getGasPrice()
+    const maxFeePerGas = gasPrice * BigInt(3)
+    const maxPriorityFeePerGas = BigInt(1000000000) // 1 gwei
+
+    const hash = await walletClient.writeContract({
+      address: ERC8004_REPUTATION_REGISTRY,
+      abi: REPUTATION_REGISTRY_ABI,
+      functionName: 'giveFeedback',
+      args: [
+        BigInt(agentTokenId),
+        value as unknown as bigint,
+        valueDecimals,
+        'escrow',
+        'review',
+        baseUrl,
+        feedbackURI,
+        feedbackHash,
+      ],
+      gas: gasEstimate + BigInt(30000), // buffer
+      nonce,
+      maxFeePerGas,
+      maxPriorityFeePerGas,
+    })
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      confirmations: 2,
+    })
+
+    if (receipt.status !== 'success') {
+      return { success: false, error: 'Transaction failed', txHash: hash }
+    }
+
+    return { success: true, txHash: hash }
+  } catch (error) {
+    console.error('ERC-8004 feedback posting failed:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Read on-chain reputation from the ERC-8004 Reputation Registry
+ * View function — free, no gas needed
+ */
+export async function getOnChainReputation(agentTokenId: string): Promise<{
+  count: number
+  summaryValue: number
+  summaryValueDecimals: number
+} | null> {
+  try {
+    const result = await publicClient.readContract({
+      address: ERC8004_REPUTATION_REGISTRY,
+      abi: REPUTATION_REGISTRY_ABI,
+      functionName: 'getSummary',
+      args: [
+        BigInt(agentTokenId),
+        [], // empty clientAddresses = all clients
+        'escrow',
+        'review',
+      ],
+    })
+
+    const [count, summaryValue, summaryValueDecimals] = result as [bigint, bigint, number]
+
+    return {
+      count: Number(count),
+      summaryValue: Number(summaryValue),
+      summaryValueDecimals,
+    }
+  } catch (error) {
+    console.error('ERC-8004 reputation read failed:', error)
+    return null
   }
 }

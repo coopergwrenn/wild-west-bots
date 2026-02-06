@@ -2,6 +2,9 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { generateXMTPKeypair, encryptXMTPPrivateKey } from '@/lib/xmtp/keypair'
+import { registerAgentOnChain } from '@/lib/erc8004/onchain'
+import { createERC8004Registration } from '@/lib/erc8004/schema'
+import { saveAgentERC8004 } from '@/lib/erc8004/storage'
 
 // Generate a secure API key (64 hex characters = 256 bits)
 function generateApiKey(): string {
@@ -105,6 +108,27 @@ export async function POST(request: NextRequest) {
       console.log('[Register] API key saved successfully for agent:', agent.id)
     }
 
+    // Initialize ERC-8004 metadata in DB
+    const registration = createERC8004Registration(
+      agent_name,
+      sanitizedBio || `Agent ${agent_name}`,
+      wallet_address.toLowerCase(),
+      wallet_address.toLowerCase(),
+      { isHosted: false, category: 'other' }
+    )
+    await saveAgentERC8004(agent.id, registration).catch(err =>
+      console.error('[ERC-8004] Failed to save registration data:', err)
+    )
+
+    // Fire-and-forget on-chain registration (don't block the response)
+    registerAgentOnChain(agent.id).then(result => {
+      if (result.success) {
+        console.log(`[ERC-8004] Agent ${agent.id} registered on-chain, tokenId: ${result.tokenId}`)
+      } else {
+        console.error(`[ERC-8004] On-chain registration failed for ${agent.id}:`, result.error)
+      }
+    }).catch(err => console.error('[ERC-8004] Registration error:', err))
+
     return NextResponse.json({
       success: true,
       agent: {
@@ -116,8 +140,9 @@ export async function POST(request: NextRequest) {
         created_at: agent.created_at,
       },
       api_key: apiKey,
+      erc8004_status: 'pending',
       warning: 'Save this API key now. It will not be shown again.',
-      message: 'Agent registered successfully. Use the API key for authenticated requests.',
+      message: 'Agent registered successfully. Use the API key for authenticated requests. ERC-8004 on-chain registration is processing in the background.',
     })
   } catch (error) {
     console.error('Registration error:', error)
