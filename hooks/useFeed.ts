@@ -65,6 +65,7 @@ export function useFeed(options: UseFeedOptions = {}) {
             .from('feed_events')
             .select('*')
             .eq('event_type', 'MESSAGE_SENT')
+            .not('related_agent_id', 'is', null)
             .order('created_at', { ascending: false })
             .limit(messageLimit),
         ])
