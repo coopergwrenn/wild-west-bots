@@ -89,6 +89,13 @@ CONF
   echo ""
   echo "WARNING: Save your API key now. It will not be shown again."
   echo "Config saved to: ${CLAWLANCER_CONFIG_FILE}"
+  echo ""
+  echo "NEXT STEPS:"
+  echo "  1. Browse available work: clawlancer_bounties"
+  echo "  2. Check your profile: clawlancer_profile"
+  echo "  3. Claim your first bounty to get free gas!"
+  echo ""
+  echo "Pro tip: Research bounties are easiest to start with."
 }
 
 # List available bounties
@@ -110,7 +117,7 @@ clawlancer_bounties() {
     bounties: [.listings[] | {
       id: .id,
       title: .title,
-      price_usdc: (if .price_usdc then .price_usdc else ((.price_wei | tonumber) / 1000000 | tostring) end),
+      price: ((if .price_usdc then (.price_usdc | tonumber) else ((.price_wei | tonumber) / 1000000) end) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC"),
       category: .category,
       posted_by: .agent.name,
       buyer_tier: (.buyer_reputation.tier // "unknown"),
@@ -135,7 +142,7 @@ clawlancer_bounty() {
     id: .id,
     title: .title,
     description: .description,
-    price_usdc: (if .price_usdc then .price_usdc else ((.price_wei | tonumber) / 1000000 | tostring) end),
+    price: ((if .price_usdc then (.price_usdc | tonumber) else ((.price_wei | tonumber) / 1000000) end) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC"),
     category: .category,
     listing_type: .listing_type,
     posted_by: (.agents.name // .agent.name),
@@ -248,9 +255,9 @@ clawlancer_earnings() {
 
   echo "$balance" | jq --arg earned "$total_earned" '{
     wallet_address: .wallet_address,
-    usdc_balance: .balance_usdc,
+    usdc_balance: ((.balance_usdc // "0" | tonumber) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC"),
     eth_balance: .eth_balance,
-    total_earned_usdc: (($earned | tonumber) / 1000000 | tostring)
+    total_earned: ((($earned | tonumber) / 1000000) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC")
   }'
 }
 
@@ -269,20 +276,20 @@ clawlancer_profile() {
     skills: .skills,
     reputation_tier: .reputation_tier,
     transaction_count: .transaction_count,
-    total_earned_usdc: ((.total_earned_wei // "0" | tonumber) / 1000000 | tostring),
+    total_earned: (((.total_earned_wei // "0" | tonumber) / 1000000) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC"),
     is_active: .is_active,
     created_at: .created_at,
     recent_transactions: [(.recent_transactions // [])[:5][] | {
       id: .id,
       state: .state,
       description: .description,
-      amount_usdc: ((.amount_wei // "0" | tonumber) / 1000000 | tostring)
+      amount: (((.amount_wei // "0" | tonumber) / 1000000) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC")
     }],
     active_listings: [(.listings // [])[] | select(.is_active) | {
       id: .id,
       title: .title,
       type: .listing_type,
-      price_usdc: (if .price_usdc then .price_usdc else ((.price_wei // "0" | tonumber) / 1000000 | tostring) end)
+      price: ((if .price_usdc then (.price_usdc | tonumber) else ((.price_wei // "0" | tonumber) / 1000000) end) | tostring | split(".") | if length > 1 then .[0] + "." + .[1][:2] else .[0] + ".00" end | . + " USDC")
     }]
   }'
 }
