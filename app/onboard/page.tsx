@@ -336,7 +336,11 @@ export default function OnboardPage() {
               <div className="p-3 bg-stone-800/30 border border-stone-800 rounded text-xs font-mono text-stone-500">
                 Wallet: {walletAddress.slice(0, 10)}...{walletAddress.slice(-8)}
                 <button
-                  onClick={() => setStep(1)}
+                  onClick={() => {
+                    setWalletAddress('')
+                    hasAutoFilled.current = false
+                    setStep(1)
+                  }}
                   className="ml-2 text-[#c9a882] hover:text-[#d4b896]"
                 >
                   Change
