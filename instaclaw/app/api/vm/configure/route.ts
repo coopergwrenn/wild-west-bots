@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
         configure_attempts: 0,
         default_model: pending.default_model ?? "claude-sonnet-4-5-20250929",
         api_mode: pending.api_mode,
+        tier: pending.tier,
       })
       .eq("id", vm.id);
 

@@ -66,7 +66,20 @@ export async function configureOpenClaw(
     const modelArg = config.model || "claude-sonnet-4-5-20250929";
     assertSafeShellArg(modelArg, "model");
 
-    // For all-inclusive mode, pass ANTHROPIC_API_KEY via SSH environment
+    // For all-inclusive mode, pass proxy URL instead of raw API key.
+    // The VM gateway calls our proxy which holds the real API key and enforces rate limits.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
+    const proxyEnv =
+      config.apiMode === "all_inclusive" && appUrl
+        ? (() => {
+            const proxyUrl = `${appUrl.startsWith("http") ? appUrl : `https://${appUrl}`}/api/gateway/proxy`;
+            assertSafeShellArg(proxyUrl.replace(/[:/]/g, "_"), "proxyUrl"); // validate sans URL chars
+            return `ANTHROPIC_PROXY_URL='${proxyUrl}' `;
+          })()
+        : "";
+
+    // For all-inclusive: pass a placeholder API key (the proxy holds the real one).
+    // For BYOK: ANTHROPIC_API_KEY env var is not needed (key is in the apiArg).
     const envPrefix =
       config.apiMode === "all_inclusive" && process.env.ANTHROPIC_API_KEY
         ? (() => {
@@ -76,7 +89,7 @@ export async function configureOpenClaw(
         : "";
 
     const result = await ssh.execCommand(
-      `${envPrefix}bash ~/openclaw/scripts/configure-vm.sh '${config.telegramBotToken}' '${apiArg}' '${gatewayToken}' '${modelArg}'`
+      `${envPrefix}${proxyEnv}bash ~/openclaw/scripts/configure-vm.sh '${config.telegramBotToken}' '${apiArg}' '${gatewayToken}' '${modelArg}'`
     );
 
     if (result.code !== 0) {
