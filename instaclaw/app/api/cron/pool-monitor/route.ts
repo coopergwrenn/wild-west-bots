@@ -6,6 +6,8 @@ import {
   resolveHetznerIds,
   getNextVmNumber,
   formatVmName,
+  getImage,
+  getSnapshotUserData,
   HETZNER_DEFAULTS,
 } from "@/lib/hetzner";
 
@@ -73,6 +75,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const image = getImage();
+  const userData = getSnapshotUserData();
+  const isSnapshot = !!process.env.HETZNER_SNAPSHOT_ID;
+
   const provisioned: { name: string; ip: string }[] = [];
 
   for (let i = 0; i < toProvision; i++) {
@@ -81,8 +87,10 @@ export async function GET(req: NextRequest) {
     try {
       const server = await createServer({
         name: vmName,
+        image,
         sshKeyId,
         firewallId,
+        userData,
       });
 
       const readyServer = await waitForServer(server.id);
@@ -93,8 +101,8 @@ export async function GET(req: NextRequest) {
         name: vmName,
         hetzner_server_id: String(server.id),
         ssh_port: 22,
-        ssh_user: "root",
-        status: "provisioning",
+        ssh_user: "openclaw",
+        status: isSnapshot ? "ready" : "provisioning",
         region: HETZNER_DEFAULTS.region,
         server_type: HETZNER_DEFAULTS.serverType,
       });
@@ -119,6 +127,9 @@ export async function GET(req: NextRequest) {
     needed,
     provisioned: provisioned.length,
     vms: provisioned,
-    note: 'New VMs are in "provisioning" status. Run install-openclaw.sh on each to finalize.',
+    mode: isSnapshot ? "snapshot" : "fresh",
+    note: isSnapshot
+      ? "VMs created from snapshot with cloud-init. Status: ready."
+      : 'New VMs are in "provisioning" status. Run install-openclaw.sh to finalize.',
   });
 }

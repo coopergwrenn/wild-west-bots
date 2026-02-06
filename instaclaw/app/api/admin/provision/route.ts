@@ -7,6 +7,8 @@ import {
   resolveHetznerIds,
   getNextVmNumber,
   formatVmName,
+  getImage,
+  getSnapshotUserData,
   HETZNER_DEFAULTS,
 } from "@/lib/hetzner";
 
@@ -39,8 +41,11 @@ export async function POST(req: NextRequest) {
   );
   const startNum = getNextVmNumber(existingNames);
 
-  // Resolve Hetzner resource IDs
+  // Resolve Hetzner resource IDs and snapshot config
   const { sshKeyId, firewallId } = await resolveHetznerIds();
+  const image = getImage();
+  const userData = getSnapshotUserData();
+  const isSnapshot = !!process.env.HETZNER_SNAPSHOT_ID;
 
   const results: {
     id: string;
@@ -57,15 +62,17 @@ export async function POST(req: NextRequest) {
     try {
       const server = await createServer({
         name: vmName,
+        image,
         sshKeyId,
         firewallId,
+        userData,
       });
 
       // Wait for the server to get an IP
       const readyServer = await waitForServer(server.id);
       const ip = readyServer.public_net.ipv4.ip;
 
-      // Insert into Supabase as "provisioning" (install script still needed)
+      // Insert into Supabase — snapshot VMs are ready after cloud-init
       const { data: vm, error } = await supabase
         .from("instaclaw_vms")
         .insert({
@@ -73,8 +80,8 @@ export async function POST(req: NextRequest) {
           name: vmName,
           hetzner_server_id: String(server.id),
           ssh_port: 22,
-          ssh_user: "root", // becomes "openclaw" after install-openclaw.sh
-          status: "provisioning",
+          ssh_user: "openclaw",
+          status: isSnapshot ? "ready" : "provisioning",
           region: HETZNER_DEFAULTS.region,
           server_type: HETZNER_DEFAULTS.serverType,
         })
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
         name: vmName,
         ip,
         hetzner_server_id: server.id,
-        status: "provisioning",
+        status: isSnapshot ? "ready" : "provisioning",
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -103,6 +110,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     provisioned: results,
     errors: errors.length > 0 ? errors : undefined,
-    note: 'VMs are in "provisioning" status. Run scripts/provision-vm.sh or SSH in to run install-openclaw.sh to finalize.',
+    mode: isSnapshot ? "snapshot" : "fresh",
+    note: isSnapshot
+      ? "VMs created from snapshot with cloud-init personalization. Status: ready."
+      : 'VMs are in "provisioning" status. Run install-openclaw.sh to finalize.',
   });
 }

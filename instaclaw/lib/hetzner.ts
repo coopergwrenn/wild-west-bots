@@ -62,21 +62,27 @@ interface CreateServerOptions {
   location?: string;
   sshKeyId: number;
   firewallId: number;
+  userData?: string;
 }
 
 export async function createServer(
   opts: CreateServerOptions
 ): Promise<HetznerServer> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: Record<string, any> = {
+    name: opts.name,
+    server_type: opts.serverType ?? "cpx21",
+    image: opts.image ?? "ubuntu-24.04",
+    location: opts.location ?? "ash",
+    ssh_keys: [opts.sshKeyId],
+    firewalls: [{ firewall: opts.firewallId }],
+  };
+  if (opts.userData) {
+    body.user_data = opts.userData;
+  }
   const data = await hetznerFetch("/servers", {
     method: "POST",
-    body: JSON.stringify({
-      name: opts.name,
-      server_type: opts.serverType ?? "cpx21",
-      image: opts.image ?? "ubuntu-24.04",
-      location: opts.location ?? "ash",
-      ssh_keys: [opts.sshKeyId],
-      firewalls: [{ firewall: opts.firewallId }],
-    }),
+    body: JSON.stringify(body),
   });
   return data.server;
 }
@@ -112,6 +118,57 @@ export const HETZNER_DEFAULTS = {
   location: "ash",
   region: "us-east",
 } as const;
+
+/**
+ * Returns the snapshot image ID if set, otherwise falls back to ubuntu-24.04.
+ */
+export function getImage(): string {
+  return process.env.HETZNER_SNAPSHOT_ID || HETZNER_DEFAULTS.image;
+}
+
+/**
+ * Generate cloud-init user_data for personalizing a snapshot-based VM.
+ * Returns base64-encoded cloud-init script, or undefined for fresh installs.
+ */
+export function getSnapshotUserData(): string | undefined {
+  if (!process.env.HETZNER_SNAPSHOT_ID) return undefined;
+
+  const script = `#!/bin/bash
+set -euo pipefail
+OPENCLAW_USER="openclaw"
+CONFIG_DIR="/home/\${OPENCLAW_USER}/.openclaw"
+CREDS_DIR="\${CONFIG_DIR}/creds"
+ENCRYPTION_KEY_FILE="\${CONFIG_DIR}/.vault_key"
+
+rm -f /etc/ssh/ssh_host_* 2>/dev/null || true
+dpkg-reconfigure openssh-server 2>/dev/null || ssh-keygen -A
+systemd-machine-id-setup
+
+mkdir -p "\${CONFIG_DIR}" "\${CREDS_DIR}"
+chown "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${CONFIG_DIR}" "\${CREDS_DIR}"
+chmod 700 "\${CREDS_DIR}"
+openssl rand -base64 32 > "\${ENCRYPTION_KEY_FILE}"
+chmod 400 "\${ENCRYPTION_KEY_FILE}"
+chown "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${ENCRYPTION_KEY_FILE}"
+
+cat > "\${CONFIG_DIR}/openclaw.json" <<'EOF'
+{"_note":"Placeholder","telegram":{"bot_token":""},"api":{"mode":"all_inclusive"},"gateway":{"port":8080,"bind":"127.0.0.1"}}
+EOF
+chown "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${CONFIG_DIR}/openclaw.json"
+chmod 600 "\${CONFIG_DIR}/openclaw.json"
+
+rm -f /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null || true
+systemctl restart fail2ban 2>/dev/null || true
+systemctl stop caddy 2>/dev/null || true
+sleep 1
+systemctl start caddy 2>/dev/null || true
+if systemctl is-active ssh.service &>/dev/null; then systemctl restart ssh; fi
+
+touch /tmp/.instaclaw-personalized
+`;
+
+  return Buffer.from(script).toString("base64");
+}
 
 /**
  * Resolve SSH key ID and firewall ID from Hetzner by name.
