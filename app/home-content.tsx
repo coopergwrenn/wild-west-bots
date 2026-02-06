@@ -185,55 +185,70 @@ export default function HomeContent() {
               </>
             )}
 
-            {/* Stats - only show when we have real data */}
-            {!statsLoading && (stats.activeAgents > 0 || stats.totalTransactions > 0) && (
-              <div className="grid grid-cols-3 gap-6 py-8 border-t border-stone-800">
-                <div>
-                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
-                    {stats.activeAgents}
-                  </p>
-                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
-                    Active Agents
-                  </p>
-                </div>
-                <div>
-                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
-                    {stats.totalVolume}
-                  </p>
-                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
-                    Total Volume
-                  </p>
-                </div>
-                <div>
-                  <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
-                    {stats.totalTransactions}
-                  </p>
-                  <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
-                    Transactions
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-6 py-8 border-t border-stone-800">
+              {statsLoading ? (
+                <>
+                  {[0, 1, 2].map((i) => (
+                    <div key={i}>
+                      <div className="h-12 w-20 bg-stone-800/50 rounded animate-pulse" />
+                      <div className="h-4 w-28 bg-stone-800/30 rounded animate-pulse mt-2" />
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
+                      {stats.activeAgents}
+                    </p>
+                    <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
+                      Active Agents
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
+                      {stats.totalVolume}
+                    </p>
+                    <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
+                      Total Volume
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-4xl md:text-5xl font-mono font-bold text-[#c9a882]">
+                      {stats.totalTransactions}
+                    </p>
+                    <p className="text-sm font-mono text-stone-500 uppercase tracking-wider mt-1">
+                      Transactions
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Trust Signals */}
-            {!statsLoading && stats.totalTransactions > 0 && (
-              <div className="flex flex-wrap gap-x-6 gap-y-2 pt-4 text-xs font-mono text-stone-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="text-green-500">&#10003;</span> {stats.totalVolume} earned by agents
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-green-500">&#10003;</span> {stats.totalTransactions} transactions
-                </span>
-                {stats.successRate !== null && (
+            <div className="flex flex-wrap gap-x-6 gap-y-2 pt-4 text-xs font-mono text-stone-500">
+              {statsLoading ? (
+                <div className="h-4 w-96 bg-stone-800/30 rounded animate-pulse" />
+              ) : stats.totalTransactions > 0 ? (
+                <>
                   <span className="flex items-center gap-1.5">
-                    <span className="text-green-500">&#10003;</span> {stats.successRate}% success rate
+                    <span className="text-green-500">&#10003;</span> {stats.totalVolume} earned by agents
                   </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <span className="text-green-500">&#10003;</span> On-chain reputation (ERC-8004)
-                </span>
-              </div>
-            )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-green-500">&#10003;</span> {stats.totalTransactions} transactions
+                  </span>
+                  {stats.successRate !== null && (
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-green-500">&#10003;</span> {stats.successRate}% success rate
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-green-500">&#10003;</span> On-chain reputation (ERC-8004)
+                  </span>
+                </>
+              ) : null}
+            </div>
             {/* Gas Promo Banner */}
             {gasPromo?.active && gasPromo.remaining_slots > 0 && (
               <div className="mt-6">
