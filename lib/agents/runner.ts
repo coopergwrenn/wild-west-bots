@@ -387,9 +387,10 @@ You must respond with EXACTLY ONE action in JSON format. Choose from:
    {"type": "do_nothing", "reason": "why you're waiting or observing"}
    (Use this to browse the marketplace without acting - it shows you're "online")
 
-2. Send a PUBLIC message (appears in feed - great for engagement!):
-   {"type": "send_message", "to_agent_id": null, "content": "Your public announcement", "is_public": true}
-   Examples: "Looking for a data analysis agent!", "Anyone need code reviewed?", "Interesting marketplace today..."
+2. Send a PUBLIC message to a specific agent (appears in feed - great for engagement!):
+   {"type": "send_message", "to_agent_id": "uuid-of-recipient", "content": "Your public reply or shoutout", "is_public": true}
+   NOTE: You MUST specify a to_agent_id. Pick an agent from the marketplace or escrows to interact with.
+   Examples: Reply to a listing seller, congratulate someone on a deal, ask a specific agent about their service.
 
 3. Create a new listing (offer a service or post a bounty):
    {"type": "create_listing", "title": "Service Name", "description": "What you're offering", "category": "analysis|creative|data|code|research|other", "price_wei": "5000000"}
@@ -485,8 +486,50 @@ export async function executeAgentAction(
       }
 
       case 'buy_listing': {
-        // For hosted agents, we need to handle on-chain escrow creation
-        // First, call the buy API to get escrow details
+        // House bots use V1 DB-only transactions (no on-chain escrow)
+        const isHouse = await isHouseBot(context.agent.id)
+        if (isHouse) {
+          // Get the listing details
+          const { data: listing } = await supabaseAdmin
+            .from('listings')
+            .select('id, agent_id, title, price_wei, currency, is_active, times_purchased')
+            .eq('id', action.listing_id)
+            .eq('is_active', true)
+            .single()
+
+          if (!listing) return { success: false, error: 'Listing not found or inactive' }
+          if (listing.agent_id === context.agent.id) return { success: false, error: 'Cannot buy own listing' }
+
+          // Create V1 transaction directly in DB as FUNDED
+          const deadline = new Date()
+          deadline.setHours(deadline.getHours() + 24)
+          const { data: txn, error: txnErr } = await supabaseAdmin
+            .from('transactions')
+            .insert({
+              buyer_agent_id: context.agent.id,
+              seller_agent_id: listing.agent_id,
+              listing_id: listing.id,
+              amount_wei: listing.price_wei,
+              currency: listing.currency || 'USDC',
+              description: listing.title,
+              state: 'FUNDED',
+              deadline: deadline.toISOString(),
+            })
+            .select('id')
+            .single()
+
+          if (txnErr || !txn) return { success: false, error: 'Failed to create transaction' }
+
+          // Increment times_purchased
+          await supabaseAdmin
+            .from('listings')
+            .update({ times_purchased: (listing.times_purchased || 0) + 1 })
+            .eq('id', listing.id)
+
+          return { success: true, result: `Purchased "${listing.title}" (V1 DB-only, txn: ${txn.id})` }
+        }
+
+        // External agents: call the buy API for on-chain escrow
         const res = await fetch(`${baseUrl}/api/listings/${action.listing_id}/buy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader },
@@ -498,21 +541,17 @@ export async function executeAgentAction(
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed to initiate purchase')
 
-        // If hosted agent with Privy wallet, create escrow on-chain
-        if (context.agent.privy_wallet_id && data.state === 'PENDING') {
-          // TODO: Implement on-chain escrow creation via Privy
-          // For now, return the pending state
-          return { success: true, result: `Purchase initiated: ${data.transaction_id}` }
-        }
-
         return { success: true, result: `Purchase: ${data.state}` }
       }
 
       case 'send_message': {
+        // Block broadcast spam: public messages must have a recipient
+        if (action.is_public && !action.to_agent_id) {
+          return { success: false, error: 'Broadcast messages not allowed — specify a to_agent_id' }
+        }
         // Routes to correct table based on is_public flag:
         // - is_public=true → `messages` table → appears in feed
         // - is_public=false → `agent_messages` table → private DM
-        // See docs/messaging-architecture.md for details
         const res = await fetch(`${baseUrl}/api/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader },

@@ -81,6 +81,27 @@ export async function POST(request: NextRequest) {
       agentsToProcess.map((a: { name: string }) => a.name).join(', '))
   }
 
+  // Cooldown: skip house bots that ran within the last 25 minutes to prevent feed spam
+  if (agentType === 'house') {
+    const cooldownCutoff = new Date(Date.now() - 25 * 60 * 1000).toISOString()
+    const { data: recentLogs } = await supabaseAdmin
+      .from('agent_logs')
+      .select('agent_id')
+      .in('agent_id', agentsToProcess.map((a: { id: string }) => a.id))
+      .gte('heartbeat_at', cooldownCutoff)
+      .not('action_chosen', 'cs', '{"type":"skip"}')
+
+    const recentlyRanIds = new Set((recentLogs || []).map((l: { agent_id: string }) => l.agent_id))
+    const before = agentsToProcess.length
+    agentsToProcess = agentsToProcess.filter((a: { id: string }) => !recentlyRanIds.has(a.id))
+    if (before > agentsToProcess.length) {
+      console.log(`[House Bots] Cooldown: skipped ${before - agentsToProcess.length} bots that ran recently`)
+    }
+    if (agentsToProcess.length === 0) {
+      return NextResponse.json({ message: 'All selected bots on cooldown', processed: 0 })
+    }
+  }
+
   // Process agents with jittered timing to avoid thundering herd
   const results: { id: string; name: string; success: boolean; action?: string; error?: string }[] = []
 
