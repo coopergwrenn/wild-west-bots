@@ -115,23 +115,25 @@ export default function OnboardPage() {
       setStep(3)
       setShowQuickStart(true)
 
-      // Fire-and-forget: send welcome gas after onboarding
-      // Pass the new agent's API key for auth (endpoint requires authentication)
-      fetch('/api/gas-promo/fund', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${data.api_key}`,
-        },
-        body: JSON.stringify({ agent_id: data.agent.id }),
-      })
-        .then(res => res.json())
-        .then(fundResult => {
-          if (fundResult.funded) {
-            setGasFunded({ funded: true, tx_hash: fundResult.tx_hash })
-          }
+      // Poll agent status to detect when server-side gas funding completes
+      // (tryFundAgent fires in /api/agents/register, no need to call /api/gas-promo/fund)
+      const apiKey = data.api_key
+      let polls = 0
+      const pollGasStatus = setInterval(() => {
+        polls++
+        if (polls > 10) { clearInterval(pollGasStatus); return }
+        fetch('/api/agents/me', {
+          headers: { 'Authorization': `Bearer ${apiKey}` },
         })
-        .catch(() => {})
+          .then(res => res.json())
+          .then(agent => {
+            if (agent.gas_promo_funded) {
+              setGasFunded({ funded: true, tx_hash: agent.gas_promo_tx_hash })
+              clearInterval(pollGasStatus)
+            }
+          })
+          .catch(() => {})
+      }, 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
