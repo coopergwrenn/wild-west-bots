@@ -336,7 +336,7 @@ if [[ -n "${VM_DOMAIN}" ]]; then
   TLS_DIRECTIVE=""
 else
   # No domain — bind to all interfaces, use Caddy's internal self-signed certs
-  VM_IP_FOR_CADDY=$(curl -s -4 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+  VM_IP_FOR_CADDY=$(curl -s -4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
   CADDY_HOST=":443"
   TLS_DIRECTIVE="    tls internal"
   warn "No --domain specified. Caddy will use self-signed TLS on ${VM_IP_FOR_CADDY}."
@@ -544,7 +544,7 @@ log "Ports 3000 and 8080 blocked externally (localhost only via Caddy)."
 # 12. Print success
 # ---------------------------------------------------------------------------
 
-VM_IP=$(curl -s -4 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+VM_IP=$(curl -s -4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 
 echo ""
 echo "=============================================="

@@ -248,29 +248,92 @@ chmod 600 "${CONFIG_FILE}"
 log "Config written to ${CONFIG_FILE} (secrets encrypted, not plaintext)."
 
 # ---------------------------------------------------------------------------
-# 3b. Ensure Caddy has a /webhook route for Telegram (no auth required)
+# 3b. Generate self-signed TLS cert and load full Caddy config via admin API
 # ---------------------------------------------------------------------------
 
-# Check if /webhook route already exists in Caddy config
-CADDY_ROUTES=$(curl -sf http://localhost:2019/config/apps/http/servers/srv0/routes 2>/dev/null || echo "[]")
-if echo "${CADDY_ROUTES}" | grep -q '"/webhook"'; then
-  log "Caddy /webhook route already exists."
+# Get the VM's external IP for the certificate SAN
+VM_IP=$(curl -s -4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
+
+CERT_DIR="${CONFIG_DIR}/certs"
+mkdir -p "${CERT_DIR}"
+
+if [[ ! -f "${CERT_DIR}/cert.pem" ]]; then
+  log "Generating self-signed TLS certificate for ${VM_IP}..."
+  openssl req -x509 -newkey rsa:2048 \
+    -keyout "${CERT_DIR}/key.pem" \
+    -out "${CERT_DIR}/cert.pem" \
+    -days 3650 -nodes \
+    -subj "/CN=${VM_IP}" \
+    -addext "subjectAltName=IP:${VM_IP}" 2>/dev/null
+  chmod 644 "${CERT_DIR}/cert.pem" "${CERT_DIR}/key.pem"
+  log "TLS certificate generated for IP ${VM_IP}."
 else
-  log "Adding /webhook route to Caddy for Telegram webhooks..."
-  # Find the index of the catch-all route (last route) to insert before it
-  ROUTE_COUNT=$(echo "${CADDY_ROUTES}" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
-  if [[ "${ROUTE_COUNT}" -gt 0 ]]; then
-    INSERT_IDX=$((ROUTE_COUNT - 1))
-    curl -sf -X PUT \
-      "http://localhost:2019/config/apps/http/servers/srv0/routes/${INSERT_IDX}" \
-      -H "Content-Type: application/json" \
-      -d '{"group":"group3","match":[{"path":["/webhook"]}],"handle":[{"handler":"subroute","routes":[{"handle":[{"handler":"reverse_proxy","upstreams":[{"dial":"127.0.0.1:8080"}]}]}]}]}' \
-      > /dev/null 2>&1
-    log "Caddy /webhook route added at index ${INSERT_IDX}."
-  else
-    warn "Could not determine Caddy route count. Telegram webhooks may not work."
-  fi
+  log "TLS certificate already exists."
 fi
+
+# Load complete Caddy config with inline PEM cert via admin API.
+# This avoids filesystem permission issues (Caddy runs as a different user).
+CERT_PEM=$(python3 -c "import json,sys; print(json.dumps(open('${CERT_DIR}/cert.pem').read()))")
+KEY_PEM=$(python3 -c "import json,sys; print(json.dumps(open('${CERT_DIR}/key.pem').read()))")
+
+log "Loading Caddy config with TLS cert via admin API..."
+CADDY_RESULT=$(curl -sf -X POST http://localhost:2019/load \
+  -H "Content-Type: application/json" \
+  -d "{
+  \"apps\": {
+    \"http\": {
+      \"servers\": {
+        \"srv0\": {
+          \"listen\": [\":443\"],
+          \"tls_connection_policies\": [{\"certificate_selection\": {\"any_tag\": [\"self-signed\"]}}],
+          \"routes\": [
+            {\"handle\": [{\"handler\": \"headers\", \"response\": {\"deferred\": true, \"delete\": [\"Server\"], \"set\": {\"X-Content-Type-Options\": [\"nosniff\"], \"X-Frame-Options\": [\"DENY\"], \"Referrer-Policy\": [\"strict-origin-when-cross-origin\"], \"Strict-Transport-Security\": [\"max-age=31536000; includeSubDomains; preload\"]}}}]},
+            {\"group\": \"g3\", \"match\": [{\"path\": [\"/webhook\"]}], \"handle\": [{\"handler\": \"subroute\", \"routes\": [{\"handle\": [{\"handler\": \"reverse_proxy\", \"upstreams\": [{\"dial\": \"127.0.0.1:${GATEWAY_PORT}\"}]}]}]}]},
+            {\"group\": \"g3\", \"match\": [{\"path\": [\"/api/gateway/*\"]}], \"handle\": [{\"handler\": \"subroute\", \"routes\": [{\"match\": [{\"not\": [{\"header\": {\"X-Gateway-Token\": [\"*\"]}}]}], \"handle\": [{\"handler\": \"static_response\", \"status_code\": 401, \"body\": \"Missing gateway token\", \"close\": true}]}, {\"handle\": [{\"handler\": \"reverse_proxy\", \"upstreams\": [{\"dial\": \"127.0.0.1:${GATEWAY_PORT}\"}]}]}]}]},
+            {\"group\": \"g3\", \"match\": [{\"path\": [\"/health\"]}], \"handle\": [{\"handler\": \"subroute\", \"routes\": [{\"handle\": [{\"handler\": \"reverse_proxy\", \"upstreams\": [{\"dial\": \"127.0.0.1:${GATEWAY_PORT}\"}]}]}]}]},
+            {\"group\": \"g3\", \"handle\": [{\"handler\": \"subroute\", \"routes\": [{\"handle\": [{\"handler\": \"reverse_proxy\", \"upstreams\": [{\"dial\": \"127.0.0.1:${CONTROL_UI_PORT}\"}]}]}]}]}
+          ]
+        },
+        \"srv1\": {
+          \"listen\": [\":80\"],
+          \"routes\": [{\"handle\": [{\"handler\": \"static_response\", \"status_code\": 301, \"headers\": {\"Location\": [\"https://{http.request.host}{http.request.uri}\"]}}]}]
+        }
+      }
+    },
+    \"tls\": {
+      \"certificates\": {
+        \"load_pem\": [{\"certificate\": ${CERT_PEM}, \"key\": ${KEY_PEM}, \"tags\": [\"self-signed\"]}]
+      }
+    }
+  }
+}" 2>&1)
+
+if [[ $? -eq 0 ]]; then
+  log "Caddy config loaded with TLS cert."
+else
+  warn "Caddy config load failed: ${CADDY_RESULT}"
+  warn "HTTPS may not work. Telegram webhooks may fail."
+fi
+
+# ---------------------------------------------------------------------------
+# 3c. Set Telegram webhook with self-signed certificate
+# ---------------------------------------------------------------------------
+
+log "Setting Telegram webhook with self-signed certificate..."
+DECRYPTED_TG_TOKEN=$(decrypt_from_file "${CREDS_DIR}/telegram_token.enc")
+
+WEBHOOK_RESULT=$(curl -sf \
+  -F "url=https://${VM_IP}/webhook" \
+  -F "certificate=@${CERT_DIR}/cert.pem" \
+  "https://api.telegram.org/bot${DECRYPTED_TG_TOKEN}/setWebhook" 2>&1)
+
+if echo "${WEBHOOK_RESULT}" | grep -q '"ok":true'; then
+  log "Telegram webhook set with self-signed certificate."
+else
+  warn "Telegram webhook setup failed: ${WEBHOOK_RESULT}"
+fi
+
+unset DECRYPTED_TG_TOKEN
 
 # ---------------------------------------------------------------------------
 # 4. Start or restart the OpenClaw gateway (localhost only)

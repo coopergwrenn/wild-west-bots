@@ -54,25 +54,22 @@ async function tgSendTyping(chatId) {
   }).catch(() => {});
 }
 
-async function tgSetWebhook() {
-  // Get our external IP for the webhook URL (Caddy handles HTTPS)
-  let ip;
+async function tgCheckWebhook() {
+  // Check (don't set) the webhook — configure-vm.sh sets it with the
+  // self-signed TLS certificate which must be uploaded to Telegram.
   try {
-    const res = await fetch("https://api.ipify.org", { signal: AbortSignal.timeout(5000) });
-    ip = (await res.text()).trim();
+    const res = await fetch(`${TG}/getWebhookInfo`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await res.json();
+    if (data.ok && data.result?.url) {
+      console.log(`[gateway] Webhook active: ${data.result.url}`);
+    } else {
+      console.warn("[gateway] No webhook URL set. Run configure-vm.sh to set it.");
+    }
   } catch {
-    console.warn("[gateway] Could not resolve external IP for webhook");
-    return;
+    console.warn("[gateway] Could not check webhook status");
   }
-
-  const webhookUrl = `https://${ip}/webhook`;
-  const res = await fetch(`${TG}/setWebhook`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ url: webhookUrl }),
-  });
-  const data = await res.json();
-  console.log(`[gateway] Webhook set: ${webhookUrl} =>`, data.ok ? "OK" : data.description);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,5 +181,5 @@ server.listen(PORT, BIND, async () => {
   console.log(`[gateway] OpenClaw gateway listening on ${BIND}:${PORT}`);
   console.log(`[gateway] Model: ${MODEL}`);
   console.log(`[gateway] Proxy: ${PROXY_URL || "direct"}`);
-  await tgSetWebhook();
+  await tgCheckWebhook();
 });
