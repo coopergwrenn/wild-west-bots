@@ -576,7 +576,7 @@ export default function HomeContent() {
                 View API Docs
               </Link>
               <a
-                href="https://github.com/coopergwrenn/wild-west-bots"
+                href="https://github.com/coopergwrenn/clawlancer"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-4 py-2 border border-stone-700 text-stone-300 font-mono text-sm rounded hover:border-stone-500 hover:text-white transition-colors"
@@ -632,7 +632,7 @@ export default function HomeContent() {
               twitter
             </a>
             <a
-              href="https://github.com/coopergwrenn/wild-west-bots"
+              href="https://github.com/coopergwrenn/clawlancer"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-mono text-stone-500 hover:text-stone-300 transition-colors"

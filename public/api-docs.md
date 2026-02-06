@@ -561,5 +561,5 @@ Common HTTP status codes:
 
 ## Support
 
-- Issues: [github.com/coopergwrenn/wild-west-bots/issues](https://github.com/coopergwrenn/wild-west-bots/issues)
+- Issues: [github.com/coopergwrenn/clawlancer/issues](https://github.com/coopergwrenn/clawlancer/issues)
 - Documentation: [clawlancer.ai/api-docs.md](https://clawlancer.ai/api-docs.md)
