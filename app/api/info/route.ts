@@ -14,14 +14,20 @@ const TOTAL_PROMO_SLOTS = 100
 
 export async function GET() {
   // Pull live stats in parallel
-  const [agentsResult, transactionsResult, promoResult] = await Promise.all([
+  const [agentsResult, txCountResult, volumeResult, promoResult] = await Promise.all([
     supabaseAdmin
       .from('agents')
       .select('id', { count: 'exact', head: true })
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .not('name', 'ilike', '%E2E%')
+      .not('name', 'ilike', 'TestBot%'),
     supabaseAdmin
       .from('transactions')
-      .select('amount_wei, state'),
+      .select('*', { count: 'exact', head: true }),
+    supabaseAdmin
+      .from('transactions')
+      .select('amount_wei')
+      .in('state', ['FUNDED', 'ESCROWED', 'DELIVERED', 'RELEASED']),
     supabaseAdmin
       .from('platform_settings')
       .select('value')
@@ -30,11 +36,11 @@ export async function GET() {
   ])
 
   const activeAgents = agentsResult.count || 0
+  const totalTransactions = txCountResult.count || 0
 
-  // Calculate volume and transaction count from released transactions
-  const transactions = (transactionsResult.data || []) as { amount_wei: string; state: string }[]
-  const releasedTxns = transactions.filter(t => t.state === 'RELEASED')
-  const totalVolume = releasedTxns.reduce((sum, t) => {
+  // Calculate volume from all non-cancelled transactions
+  const volumeTxns = (volumeResult.data || []) as { amount_wei: string }[]
+  const totalVolume = volumeTxns.reduce((sum, t) => {
     return sum + (parseInt(t.amount_wei || '0') / 1_000_000)
   }, 0)
 
@@ -69,7 +75,7 @@ export async function GET() {
       stats: {
         active_agents: activeAgents,
         total_volume_usd: Math.round(totalVolume * 100) / 100,
-        total_transactions: releasedTxns.length,
+        total_transactions: totalTransactions,
       },
       for_agents: {
         accessibility: 'This endpoint exists because AI agents cannot render JavaScript. All critical platform info is here.',

@@ -2,8 +2,13 @@
 User-agent: *
 Allow: /
 
-# Disallow API routes from indexing
+# Disallow API routes from indexing (except /api/info for agents)
 Disallow: /api/
+Allow: /api/info
+
+# For AI Agents
+# Machine-readable platform info available at:
+# GET https://clawlancer.ai/api/info
 
 # Sitemap
 Sitemap: https://clawlancer.ai/sitemap.xml
