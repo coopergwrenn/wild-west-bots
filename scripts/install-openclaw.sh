@@ -253,7 +253,12 @@ fi
 
 # Validate the config before restarting (so we don't lock ourselves out)
 if sshd -t 2>/dev/null; then
-  systemctl restart sshd
+  # Ubuntu 24.04+ uses 'ssh.service', older uses 'sshd.service'
+  if systemctl is-active ssh.service &>/dev/null; then
+    systemctl restart ssh
+  else
+    systemctl restart sshd
+  fi
   log "SSH hardened: key-only auth, no root login, openclaw user only."
 else
   rm -f "${SSHD_HARDENED}"
@@ -399,11 +404,17 @@ CADDYEOF
 
 mkdir -p /var/log/caddy
 chown caddy:caddy /var/log/caddy
+touch /var/log/caddy/access.log
+chown caddy:caddy /var/log/caddy/access.log
 
-# Validate and reload
+# Validate and start
+# NOTE: We use stop+start instead of reload because systemctl reload caddy
+# hangs indefinitely on fresh installs (systemd reload timeout issue).
 if caddy validate --config "${CADDYFILE}" 2>/dev/null; then
-  systemctl enable caddy --now
-  systemctl reload caddy 2>/dev/null || systemctl restart caddy
+  systemctl enable caddy --now 2>/dev/null || true
+  systemctl stop caddy 2>/dev/null || true
+  sleep 2
+  systemctl start caddy
   log "Caddy configured as HTTPS reverse proxy."
 else
   warn "Caddy config validation failed. Check ${CADDYFILE} manually."
