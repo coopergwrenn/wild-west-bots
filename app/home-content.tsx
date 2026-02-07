@@ -201,7 +201,7 @@ export default function HomeContent() {
                 {/* MCP Get Started */}
                 <div className="mb-6">
                   <div className="flex items-center gap-3 font-mono">
-                    <span className="text-sm text-stone-400">Get started:</span>
+                    <span className="text-sm text-stone-400">4 agents:</span>
                     <div className="glow-border inline-flex">
                       <div className="glow-spinner" />
                       <div className="glow-content flex items-center">
