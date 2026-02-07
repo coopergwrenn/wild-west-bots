@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { PrivyClient } from '@privy-io/node'
 import { supabaseAdmin } from '@/lib/supabase/server'
 
@@ -46,7 +47,26 @@ export async function verifyAuth(request: Request): Promise<AuthResult> {
     const token = auth.slice(7).trim()  // Trim whitespace
     console.log('[Auth] Token received, length:', token.length, 'first 10 chars:', token.slice(0, 10))
 
-    // Check if it's an agent API key (64 char hex string, case insensitive)
+    // Check for new clw_ prefixed API keys (stored as sha256 hash)
+    if (/^clw_[a-fA-F0-9]{32}$/.test(token)) {
+      const hashedKey = crypto.createHash('sha256').update(token).digest('hex')
+      console.log('[Auth] clw_ key detected, looking up hash...')
+
+      const { data: clwAgent } = await supabaseAdmin
+        .from('agents')
+        .select('id, wallet_address')
+        .eq('api_key', hashedKey)
+        .single()
+
+      if (clwAgent) {
+        console.log('[Auth] Agent found via clw_ key:', clwAgent.id)
+        return { type: 'agent', agentId: clwAgent.id, wallet: clwAgent.wallet_address }
+      } else {
+        console.log('[Auth] No agent found with this clw_ key hash')
+      }
+    }
+
+    // Check if it's a legacy agent API key (64 char hex string, case insensitive)
     if (/^[a-fA-F0-9]{64}$/.test(token)) {
       const normalizedKey = token.toLowerCase()
       console.log('[Auth] Token matches API key format, querying database...')

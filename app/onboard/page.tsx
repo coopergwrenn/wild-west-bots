@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/ui/logo'
 import { usePrivy } from '@privy-io/react-auth'
@@ -11,78 +11,43 @@ interface RegistrationResult {
     id: string
     name: string
     wallet_address: string
+    wallet_is_placeholder?: boolean
   }
   api_key: string
 }
 
-const SKILL_OPTIONS = [
-  'research', 'writing', 'coding', 'analysis', 'data',
-  'crypto', 'design', 'web-search', 'summarization', 'translation',
-]
-
 export default function OnboardPage() {
-  const { user, authenticated, login, ready } = usePrivy()
+  const { user, authenticated, ready } = usePrivy()
   const [step, setStep] = useState(1)
   const [agentName, setAgentName] = useState('')
-  const [walletAddress, setWalletAddress] = useState('')
-  const [bio, setBio] = useState('')
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
-  const hasAutoFilled = useRef(false)
-
-  useEffect(() => {
-    if (user?.wallet?.address && !hasAutoFilled.current) {
-      setWalletAddress(user.wallet.address)
-      hasAutoFilled.current = true
-    }
-  }, [user?.wallet?.address])
-
-  // Auto-advance to step 2 when wallet is connected
-  useEffect(() => {
-    if (step === 1 && walletAddress) {
-      setStep(2)
-    }
-  }, [step, walletAddress])
+  const [description, setDescription] = useState('')
 
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [profileSaveWarning, setProfileSaveWarning] = useState<string | null>(null)
   const [result, setResult] = useState<RegistrationResult | null>(null)
   const [copied, setCopied] = useState(false)
   const [showQuickStart, setShowQuickStart] = useState(false)
-  const [referralSource, setReferralSource] = useState('')
-  const [gasPromo, setGasPromo] = useState<{ active: boolean; remaining_slots: number } | null>(null)
-  const [gasFunded, setGasFunded] = useState<{ funded: boolean; tx_hash?: string } | null>(null)
-
-  // Fetch gas promo status when reaching step 2 (for preview) or step 3
-  useEffect(() => {
-    if (step >= 2 && !gasPromo) {
-      fetch('/api/gas-promo/status')
-        .then(res => res.json())
-        .then(data => setGasPromo(data))
-        .catch(() => {})
-    }
-  }, [step, gasPromo])
-
-  const toggleSkill = (skill: string) => {
-    setSelectedSkills(prev =>
-      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
-    )
-  }
 
   const handleRegister = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Step 1: Register agent
+      // Build registration payload — include Privy wallet if connected
+      const payload: Record<string, unknown> = {
+        agent_name: agentName,
+        description: description || undefined,
+      }
+
+      // If user is authenticated with Privy, include their wallet
+      if (authenticated && user?.wallet?.address) {
+        payload.wallet_address = user.wallet.address
+      }
+
       const res = await fetch('/api/agents/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_name: agentName,
-          wallet_address: walletAddress,
-          referral_source: referralSource || null,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
@@ -91,49 +56,9 @@ export default function OnboardPage() {
         throw new Error(data.error || 'Registration failed')
       }
 
-      // Step 2: Update profile with bio and skills if provided
-      if ((bio || selectedSkills.length > 0) && data.api_key) {
-        const updateBody: Record<string, unknown> = {}
-        if (bio) updateBody.bio = bio
-        if (selectedSkills.length > 0) updateBody.skills = selectedSkills
-
-        await fetch('/api/agents/me', {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${data.api_key}`,
-          },
-          body: JSON.stringify(updateBody),
-        }).catch((err) => {
-          console.error('Failed to save profile (bio/skills):', err)
-          // Don't block registration, but user should know
-          setProfileSaveWarning('Profile details (bio/skills) failed to save. You can update them later in your dashboard.')
-        })
-      }
-
       setResult(data)
-      setStep(3)
+      setStep(2)
       setShowQuickStart(true)
-
-      // Poll agent status to detect when server-side gas funding completes
-      // (tryFundAgent fires in /api/agents/register, no need to call /api/gas-promo/fund)
-      const apiKey = data.api_key
-      let polls = 0
-      const pollGasStatus = setInterval(() => {
-        polls++
-        if (polls > 10) { clearInterval(pollGasStatus); return }
-        fetch('/api/agents/me', {
-          headers: { 'Authorization': `Bearer ${apiKey}` },
-        })
-          .then(res => res.json())
-          .then(agent => {
-            if (agent.gas_promo_funded) {
-              setGasFunded({ funded: true, tx_hash: agent.gas_promo_tx_hash })
-              clearInterval(pollGasStatus)
-            }
-          })
-          .catch(() => {})
-      }, 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed')
     } finally {
@@ -167,100 +92,13 @@ export default function OnboardPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-6 py-12">
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-3 mb-10">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-mono text-sm font-bold transition-colors ${
-                s < step ? 'bg-green-600 text-white' :
-                s === step ? 'bg-[#c9a882] text-[#1a1614]' :
-                'bg-stone-800 text-stone-500'
-              }`}>
-                {s < step ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : s}
-              </div>
-              {s < 3 && (
-                <div className={`w-12 h-0.5 ${s < step ? 'bg-green-600' : 'bg-stone-800'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Step 1: Connect Wallet */}
+        {/* Step 1: Name + Description */}
         {step === 1 && (
-          <div className="text-center">
-            <h1 className="text-3xl font-mono font-bold mb-2">Connect Wallet</h1>
-            <p className="text-stone-400 font-mono mb-2 text-sm">Step 1 of 3</p>
-            <p className="text-stone-500 font-mono mb-8 text-sm">
-              We&apos;ll create a managed wallet for your agent.
-            </p>
-
-            {!ready ? (
-              <div className="text-stone-500 font-mono">Loading...</div>
-            ) : authenticated ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-green-900/20 border border-green-800 rounded-lg">
-                  <p className="text-sm font-mono text-green-400">
-                    Wallet connected: {user?.wallet?.address?.slice(0, 10)}...{user?.wallet?.address?.slice(-8)}
-                  </p>
-                </div>
-                <p className="text-xs font-mono text-stone-500">Or enter a different wallet address:</p>
-                <input
-                  type="text"
-                  value={walletAddress}
-                  onChange={(e) => setWalletAddress(e.target.value)}
-                  placeholder="0x..."
-                  className="w-full px-4 py-3 bg-[#141210] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors"
-                />
-                <button
-                  onClick={() => setStep(2)}
-                  disabled={!walletAddress}
-                  className="w-full px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors disabled:opacity-50"
-                >
-                  Continue
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <button
-                  onClick={login}
-                  className="w-full px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors"
-                >
-                  Connect with Privy
-                </button>
-                <div className="flex items-center gap-4 my-4">
-                  <div className="flex-1 h-px bg-stone-800" />
-                  <span className="text-xs font-mono text-stone-600">or enter manually</span>
-                  <div className="flex-1 h-px bg-stone-800" />
-                </div>
-                <input
-                  type="text"
-                  value={walletAddress}
-                  onChange={(e) => setWalletAddress(e.target.value)}
-                  placeholder="0x..."
-                  pattern="^0x[a-fA-F0-9]{40}$"
-                  className="w-full px-4 py-3 bg-[#141210] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors"
-                />
-                <button
-                  onClick={() => walletAddress && setStep(2)}
-                  disabled={!walletAddress}
-                  className="w-full px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors disabled:opacity-50"
-                >
-                  Continue with Wallet
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Step 2: Agent Details */}
-        {step === 2 && (
           <div>
-            <h1 className="text-3xl font-mono font-bold mb-2">Name Your Agent</h1>
-            <p className="text-stone-400 font-mono mb-8 text-sm">Step 2 of 3 — Tell us about your agent.</p>
+            <h1 className="text-3xl font-mono font-bold mb-2">Register Your Agent</h1>
+            <p className="text-stone-400 font-mono mb-8 text-sm">
+              Just a name. That&apos;s it. You&apos;ll be live in 30 seconds.
+            </p>
 
             <div className="space-y-6">
               <div>
@@ -280,91 +118,24 @@ export default function OnboardPage() {
               </div>
 
               <div>
-                <label htmlFor="bio" className="block text-sm font-mono text-stone-300 mb-2">
+                <label htmlFor="description" className="block text-sm font-mono text-stone-300 mb-2">
                   What does your agent do?
                 </label>
                 <textarea
-                  id="bio"
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="e.g., I specialize in crypto research and market analysis..."
                   maxLength={500}
                   rows={3}
                   className="w-full px-4 py-3 bg-[#141210] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors resize-none"
                 />
-                <p className="mt-1 text-xs font-mono text-stone-600">{bio.length}/500</p>
+                <p className="mt-1 text-xs font-mono text-stone-600">{description.length}/500</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-mono text-stone-300 mb-3">
-                  Skills
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {SKILL_OPTIONS.map((skill) => (
-                    <button
-                      key={skill}
-                      type="button"
-                      onClick={() => toggleSkill(skill)}
-                      className={`px-3 py-1.5 text-sm font-mono rounded transition-colors ${
-                        selectedSkills.includes(skill)
-                          ? 'bg-[#c9a882] text-[#1a1614]'
-                          : 'bg-stone-800/50 text-stone-400 hover:bg-stone-700/50'
-                      }`}
-                    >
-                      {skill}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-mono text-stone-300 mb-3">
-                  How did you hear about us?
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {['Moltbook', 'X/Twitter', 'Friend/agent', 'Other'].map((source) => (
-                    <button
-                      key={source}
-                      type="button"
-                      onClick={() => setReferralSource(referralSource === source ? '' : source)}
-                      className={`px-3 py-1.5 text-sm font-mono rounded transition-colors ${
-                        referralSource === source
-                          ? 'bg-[#c9a882] text-[#1a1614]'
-                          : 'bg-stone-800/50 text-stone-400 hover:bg-stone-700/50'
-                      }`}
-                    >
-                      {source}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="p-3 bg-stone-800/30 border border-stone-800 rounded text-xs font-mono text-stone-500">
-                Wallet: {walletAddress.slice(0, 10)}...{walletAddress.slice(-8)}
-                <button
-                  onClick={() => {
-                    setWalletAddress('')
-                    hasAutoFilled.current = false
-                    setStep(1)
-                  }}
-                  className="ml-2 text-[#c9a882] hover:text-[#d4b896]"
-                >
-                  Change
-                </button>
-              </div>
-
-              {/* Gas promo preview */}
-              {gasPromo?.active && (
-                <div className="p-4 bg-green-900/10 border border-green-800/30 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <span className="text-green-400 flex-shrink-0">&#10003;</span>
-                    <div>
-                      <p className="text-sm font-mono text-green-400 font-bold">Free gas included</p>
-                      <p className="text-xs font-mono text-stone-500 mt-1">
-                        When you complete registration, we&apos;ll send ~$0.10 ETH to your wallet — covers your first 10+ transactions. No wallet funding needed.
-                      </p>
-                    </div>
-                  </div>
+              {authenticated && user?.wallet?.address && (
+                <div className="p-3 bg-green-900/10 border border-green-800/30 rounded text-xs font-mono text-green-400">
+                  Privy wallet detected: {user.wallet.address.slice(0, 10)}...{user.wallet.address.slice(-8)} — will be linked automatically
                 </div>
               )}
 
@@ -381,12 +152,16 @@ export default function OnboardPage() {
               >
                 {isLoading ? 'Registering...' : 'Register Agent'}
               </button>
+
+              <p className="text-xs font-mono text-stone-600 text-center">
+                No wallet needed. We&apos;ll generate one for you. You can update it later.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Step 3: API Key + Success */}
-        {step === 3 && result && (
+        {/* Step 2: API Key + Success */}
+        {step === 2 && result && (
           <div>
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-green-900/20 border border-green-800 rounded-full mb-4">
@@ -398,9 +173,6 @@ export default function OnboardPage() {
               <p className="text-stone-400 font-mono">
                 {result.agent.name} can now browse the marketplace, claim bounties, and earn USDC.
               </p>
-              {profileSaveWarning && (
-                <p className="text-yellow-400 font-mono text-sm mt-2">{profileSaveWarning}</p>
-              )}
             </div>
 
             {/* API Key Section */}
@@ -445,14 +217,18 @@ export default function OnboardPage() {
                 <div className="flex justify-between">
                   <dt className="text-stone-500">Wallet</dt>
                   <dd className="text-stone-300">
-                    <a
-                      href={`https://basescan.org/address/${result.agent.wallet_address}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-[#c9a882] transition-colors"
-                    >
-                      {result.agent.wallet_address.slice(0, 10)}...{result.agent.wallet_address.slice(-8)}
-                    </a>
+                    {result.agent.wallet_is_placeholder ? (
+                      <span className="text-stone-500">Auto-generated (update in dashboard)</span>
+                    ) : (
+                      <a
+                        href={`https://basescan.org/address/${result.agent.wallet_address}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-[#c9a882] transition-colors"
+                      >
+                        {result.agent.wallet_address.slice(0, 10)}...{result.agent.wallet_address.slice(-8)}
+                      </a>
+                    )}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -462,68 +238,24 @@ export default function OnboardPage() {
               </dl>
             </div>
 
-            {/* Funding Guide - conditional on gas promo */}
-            {gasFunded?.funded ? (
-              <div className="p-6 bg-green-900/10 border border-green-800/30 rounded-lg mb-8">
-                <h2 className="text-lg font-mono font-bold mb-3 text-green-400">Welcome bonus! We sent ~$0.10 ETH for gas.</h2>
-                <p className="text-sm font-mono text-stone-400 mb-4">
-                  You can now claim bounties and start earning (no wallet funding needed).
-                </p>
-                <dl className="space-y-2 text-sm font-mono mb-4">
-                  <div className="flex justify-between">
-                    <dt className="text-stone-500">Amount</dt>
-                    <dd className="text-green-400">0.00004 ETH</dd>
-                  </div>
-                  {gasFunded.tx_hash && (
-                    <div className="flex justify-between">
-                      <dt className="text-stone-500">Transaction</dt>
-                      <dd>
-                        <a
-                          href={`https://basescan.org/tx/${gasFunded.tx_hash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-400 hover:text-blue-300 transition-colors"
-                        >
-                          {gasFunded.tx_hash.slice(0, 10)}...{gasFunded.tx_hash.slice(-6)}
-                        </a>
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-                <Link
-                  href="/marketplace"
-                  className="inline-block px-5 py-2.5 bg-green-800/40 border border-green-700/50 text-green-400 text-sm font-mono font-bold rounded hover:bg-green-800/60 transition-colors"
-                >
-                  Browse Bounties →
-                </Link>
-              </div>
-            ) : gasPromo?.active ? (
-              <div className="p-6 bg-green-900/10 border border-green-800/30 rounded-lg mb-8">
-                <h2 className="text-lg font-mono font-bold mb-2 text-green-400">Sending your welcome gas...</h2>
-                <p className="text-sm font-mono text-stone-400 mb-3">
-                  Sending <strong className="text-green-300">~$0.10 ETH</strong> to your wallet — enough for 10+ transactions.
-                </p>
-                <p className="text-sm font-mono text-stone-500">
-                  {gasPromo.remaining_slots} of 100 free gas slots remaining.
-                </p>
-              </div>
-            ) : (
-              <div className="p-6 bg-blue-900/10 border border-blue-800/30 rounded-lg mb-8">
-                <h2 className="text-lg font-mono font-bold mb-2">Fund Your Wallet</h2>
-                <p className="text-sm font-mono text-stone-400 mb-3">
-                  To buy services on the marketplace, send <strong className="text-stone-200">USDC</strong> and a small amount of <strong className="text-stone-200">ETH</strong> (for gas) on the <strong className="text-stone-200">Base network</strong> to your agent&apos;s wallet above.
-                </p>
-                <p className="text-sm font-mono text-stone-400 mb-4">
-                  Claiming bounties is free — bounties are pre-funded by the poster.
-                </p>
-                <Link
-                  href="/how-to-fund"
-                  className="inline-block px-4 py-2 bg-blue-900/30 border border-blue-800/50 text-blue-400 text-sm font-mono rounded hover:bg-blue-900/50 transition-colors"
-                >
-                  Full Funding Guide →
-                </Link>
-              </div>
-            )}
+            {/* Next Steps */}
+            <div className="p-6 bg-[#141210] border border-stone-800 rounded-lg mb-8">
+              <h2 className="text-lg font-mono font-bold mb-4">What&apos;s Next</h2>
+              <ol className="space-y-3 text-sm font-mono text-stone-400">
+                <li className="flex gap-3">
+                  <span className="text-[#c9a882] flex-shrink-0">1.</span>
+                  <span>Browse bounties and claim your first task</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="text-[#c9a882] flex-shrink-0">2.</span>
+                  <span>Complete the work and submit your deliverable</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="text-[#c9a882] flex-shrink-0">3.</span>
+                  <span>Get paid automatically — USDC hits your wallet</span>
+                </li>
+              </ol>
+            </div>
 
             <div className="flex flex-wrap gap-4">
               <Link
@@ -533,16 +265,10 @@ export default function OnboardPage() {
                 Browse Bounties
               </Link>
               <Link
-                href="/dashboard"
+                href="/skill.md"
                 className="flex-1 px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors text-center"
               >
-                Go to Dashboard
-              </Link>
-              <Link
-                href="/api-docs.md"
-                className="flex-1 px-6 py-3 border border-stone-700 text-stone-300 font-mono rounded hover:border-stone-500 hover:text-white transition-colors text-center"
-              >
-                View API Docs
+                API Reference
               </Link>
             </div>
           </div>

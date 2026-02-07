@@ -8,9 +8,19 @@ import { saveAgentERC8004 } from '@/lib/erc8004/storage'
 import { tryFundAgent } from '@/lib/gas-faucet/fund'
 import { notifyNewAgentWelcome } from '@/lib/notifications/create'
 
-// Generate a secure API key (64 hex characters = 256 bits)
+// Generate a secure API key: clw_ + 32 hex chars
 function generateApiKey(): string {
-  return crypto.randomBytes(32).toString('hex')
+  return 'clw_' + crypto.randomBytes(16).toString('hex')
+}
+
+// Hash API key for storage (sha256)
+function hashApiKey(key: string): string {
+  return crypto.createHash('sha256').update(key).digest('hex')
+}
+
+// Generate a random placeholder wallet address for API-only registrations
+function generatePlaceholderWallet(): string {
+  return '0x' + crypto.randomBytes(20).toString('hex')
 }
 
 // Simple in-memory rate limiter: max 10 registrations per IP per hour
@@ -73,39 +83,51 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { agent_name, wallet_address, moltbot_id, referral_source, bio, skills } = body
+    const { agent_name, wallet_address, moltbot_id, referral_source, bio, description, skills } = body
 
-    if (!agent_name || !wallet_address) {
+    if (!agent_name) {
       return NextResponse.json(
-        { error: 'agent_name and wallet_address are required' },
+        { error: 'agent_name is required' },
         { status: 400 }
       )
     }
 
-    // Validate wallet address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
-      return NextResponse.json(
-        { error: 'Invalid wallet address format' },
-        { status: 400 }
-      )
+    // wallet_address is optional — auto-generate if not provided
+    let finalWallet: string
+    let walletIsPlaceholder = false
+
+    if (wallet_address) {
+      // Validate wallet address format
+      if (!/^0x[a-fA-F0-9]{40}$/.test(wallet_address)) {
+        return NextResponse.json(
+          { error: 'Invalid wallet address format' },
+          { status: 400 }
+        )
+      }
+      finalWallet = wallet_address.toLowerCase()
+
+      // Check if agent with this wallet already exists
+      const { data: existing } = await supabaseAdmin
+        .from('agents')
+        .select('id')
+        .eq('wallet_address', finalWallet)
+        .single()
+
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Agent with this wallet already registered', agent_id: existing.id },
+          { status: 409 }
+        )
+      }
+    } else {
+      // Auto-generate placeholder wallet for API-only registrations
+      finalWallet = generatePlaceholderWallet()
+      walletIsPlaceholder = true
     }
 
-    // Check if agent with this wallet already exists
-    const { data: existing } = await supabaseAdmin
-      .from('agents')
-      .select('id')
-      .eq('wallet_address', wallet_address.toLowerCase())
-      .single()
-
-    if (existing) {
-      return NextResponse.json(
-        { error: 'Agent with this wallet already registered', agent_id: existing.id },
-        { status: 409 }
-      )
-    }
-
-    // Generate API key for this agent (lowercase hex)
+    // Generate API key for this agent (clw_ + 32 hex chars, stored as sha256 hash)
     const apiKey = generateApiKey()
+    const apiKeyHash = hashApiKey(apiKey)
     console.log('[Register] Generated API key for new agent, key prefix:', apiKey.slice(0, 10))
 
     // Generate XMTP keypair for BYOB agent (separate from main wallet)
@@ -122,8 +144,9 @@ export async function POST(request: NextRequest) {
       // Continue without XMTP - agent can still be created
     }
 
-    // Validate optional fields
-    const sanitizedBio = typeof bio === 'string' ? bio.slice(0, 500) : null
+    // Validate optional fields — accept 'description' as alias for 'bio'
+    const rawBio = typeof description === 'string' ? description : (typeof bio === 'string' ? bio : null)
+    const sanitizedBio = rawBio ? rawBio.slice(0, 500) : null
     const sanitizedSkills = Array.isArray(skills)
       ? skills.filter((s): s is string => typeof s === 'string').slice(0, 20).map(s => s.slice(0, 50))
       : null
@@ -133,11 +156,11 @@ export async function POST(request: NextRequest) {
       .from('agents')
       .insert({
         name: agent_name,
-        wallet_address: wallet_address.toLowerCase(),
-        owner_address: wallet_address.toLowerCase(), // For BYOB, owner is the agent wallet
+        wallet_address: finalWallet,
+        owner_address: finalWallet, // For BYOB, owner is the agent wallet
         is_hosted: false,
         moltbot_id: moltbot_id || null,
-        api_key: apiKey,
+        api_key: apiKeyHash,
         xmtp_private_key_encrypted: xmtpPrivateKeyEncrypted,
         xmtp_address: xmtpKeypair?.address || null,
         xmtp_enabled: xmtpKeypair !== null,
@@ -156,10 +179,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify the API key was saved correctly
-    if (agent.api_key !== apiKey) {
-      console.error('[Register] API key mismatch!', {
-        expected: apiKey.slice(0, 10),
+    // Verify the API key hash was saved correctly
+    if (agent.api_key !== apiKeyHash) {
+      console.error('[Register] API key hash mismatch!', {
+        expected: apiKeyHash.slice(0, 10),
         got: agent.api_key?.slice(0, 10) || 'null'
       })
     } else {
@@ -170,8 +193,8 @@ export async function POST(request: NextRequest) {
     const registration = createERC8004Registration(
       agent_name,
       sanitizedBio || `Agent ${agent_name}`,
-      wallet_address.toLowerCase(),
-      wallet_address.toLowerCase(),
+      finalWallet,
+      finalWallet,
       { isHosted: false, category: 'other' }
     )
     await saveAgentERC8004(agent.id, registration).catch(err =>
@@ -187,8 +210,8 @@ export async function POST(request: NextRequest) {
       }
     }).catch(err => console.error('[ERC-8004] Registration error:', err))
 
-    // Fire-and-forget gas promo funding (all registration paths get gas)
-    tryFundAgent(agent.id, wallet_address.toLowerCase()).then(result => {
+    // Fire-and-forget gas promo funding (skip if placeholder wallet)
+    if (!walletIsPlaceholder) tryFundAgent(agent.id, finalWallet).then(result => {
       if (result.funded) {
         console.log(`[GasPromo] Funded agent ${agent.id} at registration, tx: ${result.tx_hash}`)
       } else {
@@ -210,6 +233,7 @@ export async function POST(request: NextRequest) {
         id: agent.id,
         name: agent.name,
         wallet_address: agent.wallet_address,
+        wallet_is_placeholder: walletIsPlaceholder,
         xmtp_address: agent.xmtp_address,
         xmtp_enabled: agent.xmtp_enabled,
         created_at: agent.created_at,
@@ -218,11 +242,11 @@ export async function POST(request: NextRequest) {
       welcome_bounty_id: welcomeBountyId,
       erc8004_status: 'pending',
       warning: 'Save this API key now. It will not be shown again.',
-      message: 'Agent registered successfully. Use the API key for authenticated requests. ERC-8004 on-chain registration is processing in the background.',
+      message: 'Agent registered successfully. Use the API key for authenticated requests.',
       getting_started: {
         message: "Welcome to Clawlancer! Here's how to start earning:",
         steps: [
-          "Read the heartbeat routine: GET /heartbeat.md",
+          "Read the skill guide: GET /skill.md",
           "Browse open bounties: GET /api/listings?listing_type=BOUNTY&sort=newest",
           "Claim your first bounty and complete it within 1 hour",
           "Set up a 30-minute heartbeat cycle to stay active",

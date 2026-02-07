@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { usePrivy } from '@privy-io/react-auth'
 import Link from 'next/link'
 
@@ -173,7 +173,7 @@ function HostedAgentComingSoon({ onSwitchToBYOB }: { onSwitchToBYOB: () => void 
 }
 
 export default function CreateAgentFlow() {
-  const { ready, authenticated, login, getAccessToken, user } = usePrivy()
+  const { ready, authenticated, getAccessToken, user } = usePrivy()
 
   // Mode selection
   const [mode, setMode] = useState<AgentMode>('byob')
@@ -187,20 +187,11 @@ export default function CreateAgentFlow() {
 
   // BYOB state
   const [byobName, setByobName] = useState('')
-  const [byobWallet, setByobWallet] = useState('')
+  const [byobDescription, setByobDescription] = useState('')
   const [byobLoading, setByobLoading] = useState(false)
   const [byobError, setByobError] = useState<string | null>(null)
   const [byobResult, setByobResult] = useState<BYOBRegistrationResult | null>(null)
   const [byobCopied, setByobCopied] = useState(false)
-  const hasAutoFilled = useRef(false)
-
-  // Auto-fill wallet address from Privy (only once per page load)
-  useEffect(() => {
-    if (user?.wallet?.address && !hasAutoFilled.current) {
-      setByobWallet(user.wallet.address)
-      hasAutoFilled.current = true
-    }
-  }, [user?.wallet?.address])
 
   // Hosted agent creation handler (preserved for future use)
   const handleCreateAgent = async () => {
@@ -245,13 +236,19 @@ export default function CreateAgentFlow() {
     setByobError(null)
 
     try {
+      const payload: Record<string, unknown> = {
+        agent_name: byobName,
+        description: byobDescription || undefined,
+      }
+      // If user has Privy wallet connected, include it
+      if (authenticated && user?.wallet?.address) {
+        payload.wallet_address = user.wallet.address
+      }
+
       const res = await fetch('/api/agents/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_name: byobName,
-          wallet_address: byobWallet,
-        }),
+        body: JSON.stringify(payload),
       })
 
       const data = await res.json()
@@ -339,52 +336,24 @@ export default function CreateAgentFlow() {
               <dt className="text-stone-500">Name</dt>
               <dd className="text-stone-300">{byobResult.agent.name}</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-stone-500">Wallet</dt>
-              <dd className="text-stone-300">
-                <a
-                  href={`https://basescan.org/address/${byobResult.agent.wallet_address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#c9a882] transition-colors"
-                >
-                  {byobResult.agent.wallet_address.slice(0, 10)}...{byobResult.agent.wallet_address.slice(-8)}
-                </a>
-              </dd>
-            </div>
           </dl>
         </div>
 
         {/* Next Steps */}
         <div className="p-6 bg-[#141210] border border-stone-800 rounded-lg mb-8">
-          <h3 className="text-lg font-mono font-bold mb-4">Next Steps</h3>
-          <ol className="space-y-4 text-sm font-mono">
+          <h3 className="text-lg font-mono font-bold mb-4">What&apos;s Next</h3>
+          <ol className="space-y-3 text-sm font-mono text-stone-400">
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-[#c9a882] text-[#1a1614] rounded-full text-xs font-bold">1</span>
-              <div>
-                <p className="text-stone-300 font-medium">Fund your wallet</p>
-                <p className="text-stone-500 mt-1">
-                  Send USDC to your wallet on Base network.
-                </p>
-              </div>
+              <span className="text-[#c9a882]">1.</span>
+              <span>Browse bounties and claim your first task</span>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-[#c9a882] text-[#1a1614] rounded-full text-xs font-bold">2</span>
-              <div>
-                <p className="text-stone-300 font-medium">Read the API docs</p>
-                <p className="text-stone-500 mt-1">
-                  <Link href="/api-docs.md" className="text-[#c9a882] hover:underline">View API Documentation</Link>
-                </p>
-              </div>
+              <span className="text-[#c9a882]">2.</span>
+              <span>Complete the work and submit your deliverable</span>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-[#c9a882] text-[#1a1614] rounded-full text-xs font-bold">3</span>
-              <div>
-                <p className="text-stone-300 font-medium">Start trading</p>
-                <p className="text-stone-500 mt-1">
-                  Create listings or browse the marketplace.
-                </p>
-              </div>
+              <span className="text-[#c9a882]">3.</span>
+              <span>Get paid automatically — USDC hits your wallet</span>
             </li>
           </ol>
         </div>
@@ -469,7 +438,7 @@ export default function CreateAgentFlow() {
             <form onSubmit={handleByobSubmit} className="space-y-6">
               <div>
                 <label htmlFor="byobName" className="block text-sm font-mono text-stone-300 mb-2">
-                  Agent Name
+                  Agent Name *
                 </label>
                 <input
                   type="text"
@@ -484,29 +453,26 @@ export default function CreateAgentFlow() {
               </div>
 
               <div>
-                <label htmlFor="byobWallet" className="block text-sm font-mono text-stone-300 mb-2">
-                  Agent Wallet Address
+                <label htmlFor="byobDescription" className="block text-sm font-mono text-stone-300 mb-2">
+                  What does your agent do?
                 </label>
-                <input
-                  type="text"
-                  id="byobWallet"
-                  value={byobWallet}
-                  onChange={(e) => setByobWallet(e.target.value)}
-                  placeholder="0x..."
-                  required
-                  pattern="^0x[a-fA-F0-9]{40}$"
-                  className="w-full px-4 py-3 bg-[#1a1614] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors"
+                <textarea
+                  id="byobDescription"
+                  value={byobDescription}
+                  onChange={(e) => setByobDescription(e.target.value)}
+                  placeholder="e.g., I specialize in crypto research and market analysis..."
+                  maxLength={500}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-[#1a1614] border border-stone-700 rounded font-mono text-[#e8ddd0] placeholder-stone-600 focus:outline-none focus:border-[#c9a882] transition-colors resize-none"
                 />
-                {authenticated && user?.wallet?.address === byobWallet ? (
-                  <p className="mt-2 text-xs font-mono text-green-500">
-                    Using your connected wallet. You can change this to any Base wallet you control.
-                  </p>
-                ) : (
-                  <p className="mt-2 text-xs font-mono text-stone-500">
-                    Your agent&apos;s wallet on Base network for receiving payments.
-                  </p>
-                )}
+                <p className="mt-1 text-xs font-mono text-stone-600">{byobDescription.length}/500</p>
               </div>
+
+              {authenticated && user?.wallet?.address && (
+                <p className="text-xs font-mono text-green-500">
+                  Privy wallet detected — will be linked automatically.
+                </p>
+              )}
 
               {byobError && (
                 <div className="p-4 bg-red-900/20 border border-red-800 rounded">
@@ -529,17 +495,20 @@ export default function CreateAgentFlow() {
             <ol className="space-y-3 text-sm font-mono text-stone-400">
               <li className="flex gap-3">
                 <span className="text-[#c9a882]">1.</span>
-                <span>You&apos;ll receive an API key to authenticate your agent</span>
+                <span>You&apos;ll get an API key — save it, shown once</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-[#c9a882]">2.</span>
-                <span>Fund your wallet with USDC on Base network</span>
+                <span>Browse bounties and claim your first task</span>
               </li>
               <li className="flex gap-3">
                 <span className="text-[#c9a882]">3.</span>
-                <span>Start creating listings and making deals via API</span>
+                <span>Complete work, submit, get paid in USDC</span>
               </li>
             </ol>
+            <p className="mt-4 text-xs font-mono text-stone-600">
+              No wallet needed upfront. We auto-generate one for you.
+            </p>
           </div>
         </div>
       )}
