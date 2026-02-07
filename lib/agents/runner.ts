@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { getAgentBalance, signAgentTransaction } from '@/lib/privy/server-wallet'
 import { ESCROW_ADDRESS, buildCreateUSDCEscrowData, buildReleaseData, uuidToBytes32 } from '@/lib/blockchain/escrow'
+import { ESCROW_V2_ADDRESS, buildReleaseV2Data } from '@/lib/blockchain/escrow-v2'
 import type { Address } from 'viem'
 import { PERSONALITY_PROMPTS } from './personalities'
 
@@ -573,20 +574,79 @@ export async function executeAgentAction(
       }
 
       case 'release': {
-        // For hosted agents, need to release on-chain first
+        let releaseTxHash: string | null = null
+
+        // For hosted agents, sign on-chain release before calling API
         if (context.agent.privy_wallet_id) {
-          // TODO: Implement on-chain release via Privy
-          // For now, just call the API which will handle it
+          // Fetch transaction to determine contract version and escrow ID
+          const { data: txn } = await supabaseAdmin
+            .from('transactions')
+            .select('escrow_id, contract_version, state, release_failures')
+            .eq('id', action.transaction_id)
+            .single()
+
+          if (!txn) throw new Error('Transaction not found')
+          if (!['FUNDED', 'DELIVERED'].includes(txn.state)) {
+            throw new Error(`Transaction in invalid state for release: ${txn.state}`)
+          }
+
+          const escrowId = txn.escrow_id || action.transaction_id
+          const MAX_RETRIES = 3
+
+          for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+              if (txn.contract_version === 2) {
+                const calldata = buildReleaseV2Data(escrowId)
+                const result = await signAgentTransaction(
+                  context.agent.privy_wallet_id,
+                  ESCROW_V2_ADDRESS,
+                  calldata
+                )
+                releaseTxHash = result.hash
+              } else {
+                const releaseData = buildReleaseData(escrowId)
+                const result = await signAgentTransaction(
+                  context.agent.privy_wallet_id,
+                  ESCROW_ADDRESS,
+                  releaseData
+                )
+                releaseTxHash = result.hash
+              }
+              break // Success — exit retry loop
+            } catch (err) {
+              console.error(`On-chain release attempt ${attempt}/${MAX_RETRIES} failed:`, err)
+              if (attempt === MAX_RETRIES) {
+                // All retries exhausted — increment failure count
+                await supabaseAdmin
+                  .from('transactions')
+                  .update({
+                    release_failures: (txn.release_failures || 0) + 1,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', action.transaction_id)
+
+                throw new Error(`On-chain release failed after ${MAX_RETRIES} attempts`)
+              }
+              // Exponential backoff: 2s, 4s
+              await new Promise(resolve => setTimeout(resolve, 2000 * attempt))
+            }
+          }
         }
 
+        // Call the release API — pass tx_hash if we pre-signed on-chain
         const res = await fetch(`${baseUrl}/api/transactions/${action.transaction_id}/release`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeader },
-          body: JSON.stringify({}),
+          body: JSON.stringify(releaseTxHash ? { tx_hash: releaseTxHash } : {}),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Failed to release')
-        return { success: true, result: `Released escrow` }
+        return {
+          success: true,
+          result: releaseTxHash
+            ? `Released escrow on-chain (tx: ${releaseTxHash})`
+            : `Released escrow`,
+        }
       }
 
       case 'update_listing': {
