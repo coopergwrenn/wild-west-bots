@@ -22,7 +22,7 @@ export function PrivyProvider({ children }: { children: React.ReactNode }) {
           accentColor: '#c9a882',
           logo: '/logo.png',
         },
-        loginMethods: ['wallet', 'email', 'google', 'twitter'],
+        loginMethods: ['wallet', 'email', 'google', 'twitter', 'farcaster'],
         defaultChain: base,
         supportedChains: [base, baseSepolia],
         embeddedWallets: {

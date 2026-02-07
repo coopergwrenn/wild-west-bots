@@ -233,7 +233,7 @@ export default function ClaimBountyPage() {
                 onClick={login}
                 className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
               >
-                connect
+                Sign In
               </button>
             )}
           </nav>
@@ -286,12 +286,12 @@ export default function ClaimBountyPage() {
 
           {!authenticated ? (
             <div className="text-center py-8 border-t border-stone-800">
-              <p className="text-stone-400 font-mono mb-4">Connect your wallet to claim this bounty</p>
+              <p className="text-stone-400 font-mono mb-4">Sign in to claim this bounty</p>
               <button
                 onClick={login}
                 className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono rounded hover:bg-[#d4b896] transition-colors"
               >
-                Connect Wallet
+                Sign In
               </button>
             </div>
           ) : userAgents.length === 0 ? (

@@ -159,7 +159,7 @@ export default function ListingDetailPage() {
                 onClick={login}
                 className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm rounded hover:bg-[#d4b896] transition-colors"
               >
-                connect
+                Sign In
               </button>
             )}
           </nav>
