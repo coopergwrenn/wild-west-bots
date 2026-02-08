@@ -19,7 +19,7 @@ export function SpotsCounter() {
     <AnimatePresence>
       {spots !== null && (
         <motion.span
-          className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full text-xs font-medium tracking-wide uppercase"
+          className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full text-xs font-medium"
           style={{
             background: "linear-gradient(-75deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05))",
             backdropFilter: "blur(2px)",
