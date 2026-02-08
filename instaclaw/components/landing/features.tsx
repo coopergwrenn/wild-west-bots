@@ -18,13 +18,13 @@ const features = [
     icon: Zap,
     title: "Instant Deployment",
     description:
-      "Sign up and your AI is ready to go — no technical setup, no waiting.",
+      "Sign up and your AI is ready to go. No technical setup, no waiting.",
   },
   {
     icon: Terminal,
     title: "Your Own Computer",
     description:
-      "Your AI gets its own private machine. It can browse the web, manage files, and run tasks — just like you would.",
+      "Your AI gets its own private machine. It can browse the web, manage files, and run tasks. Just like you would.",
   },
   {
     icon: Shield,
