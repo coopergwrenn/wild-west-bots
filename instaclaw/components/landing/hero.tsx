@@ -12,7 +12,7 @@ export function Hero() {
   const { data: session } = useSession();
 
   return (
-    <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
+    <section className="relative min-h-screen flex flex-col items-center justify-center px-4 pb-24 sm:pb-16 overflow-hidden">
       {/* Top-left logo */}
       <motion.div
         className="absolute top-6 left-6 z-20"
