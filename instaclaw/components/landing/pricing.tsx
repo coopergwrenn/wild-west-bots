@@ -4,6 +4,8 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { WaitlistForm } from "./waitlist-form";
 
+const SNAPPY = [0.23, 1, 0.32, 1] as const;
+
 const tiers = [
   {
     name: "Starter",
@@ -38,17 +40,17 @@ export function Pricing() {
   const [isByok, setIsByok] = useState(false);
 
   return (
-    <section className="py-24 px-4">
+    <section className="py-16 sm:py-[12vh] px-4">
       <div className="max-w-5xl mx-auto">
         <motion.div
           className="text-center mb-16"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.6, ease: SNAPPY }}
         >
           <h2
-            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-6"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Simple, Transparent Pricing
@@ -98,7 +100,7 @@ export function Pricing() {
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
-              transition={{ delay: i * 0.15, duration: 0.6 }}
+              transition={{ delay: i * 0.15, duration: 0.6, ease: SNAPPY }}
             >
               {tier.highlighted && (
                 <span
@@ -182,7 +184,7 @@ export function Pricing() {
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ delay: 0.4, duration: 0.6 }}
+          transition={{ delay: 0.4, duration: 0.6, ease: SNAPPY }}
         >
           <div
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
@@ -199,7 +201,7 @@ export function Pricing() {
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ delay: 0.5, duration: 0.6 }}
+          transition={{ delay: 0.5, duration: 0.6, ease: SNAPPY }}
         >
           <p className="text-sm" style={{ color: "var(--muted)" }}>
             BYOK = Bring Your Own Key. Use your Anthropic API key and pay less.
@@ -208,11 +210,12 @@ export function Pricing() {
 
         {/* Second waitlist form */}
         <motion.div
+          id="waitlist"
           className="mt-16 text-center"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ delay: 0.3, duration: 0.6 }}
+          transition={{ delay: 0.3, duration: 0.6, ease: SNAPPY }}
         >
           <p className="text-lg font-medium mb-4">
             Ready to get started?

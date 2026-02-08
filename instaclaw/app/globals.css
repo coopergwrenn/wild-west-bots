@@ -106,3 +106,79 @@
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* Lenis smooth scroll overrides */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Snappy cubic-bezier easing utility */
+.transition-snappy {
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Section dividers */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+}
+
+/* FAQ clean-line styles */
+.faq-section {
+  background: #e5e3db;
+}
+.faq-item {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+.faq-item:last-child {
+  border-bottom: none;
+}
+.faq-icon {
+  transition: transform 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.faq-item[data-state="open"] .faq-icon {
+  transform: rotate(45deg);
+}
+
+/* FAQ answer max-height transition */
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  opacity: 0;
+}
+.faq-item[data-state="open"] .faq-answer {
+  max-height: 300px;
+  opacity: 1;
+}
+
+/* Scroll reveal word effect */
+.scroll-word-wrapper {
+  display: inline;
+}
+.scroll-word {
+  opacity: 0.15;
+  transition: opacity 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.scroll-word.revealed {
+  opacity: 1;
+}
+
+/* Notification bar */
+.notification-bar {
+  background: rgba(248, 247, 244, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

@@ -69,7 +69,7 @@ export function WaitlistForm() {
       <button
         type="submit"
         disabled={state === "loading"}
-        className="px-6 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
+        className="px-8 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
         style={{
           background: "var(--accent)",
           color: "#ffffff",

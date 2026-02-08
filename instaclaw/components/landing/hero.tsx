@@ -5,6 +5,8 @@ import { motion } from "motion/react";
 import { signIn, useSession } from "next-auth/react";
 import { WaitlistForm } from "./waitlist-form";
 
+const SNAPPY = [0.23, 1, 0.32, 1] as const;
+
 export function Hero() {
   const { data: session } = useSession();
 
@@ -15,7 +17,7 @@ export function Hero() {
         className="absolute top-6 right-6 z-20"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0.3, duration: 0.5 }}
+        transition={{ delay: 0.3, duration: 0.5, ease: SNAPPY }}
       >
         {session ? (
           <Link
@@ -33,8 +35,9 @@ export function Hero() {
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all"
             style={{
-              background: "var(--accent)",
-              color: "#ffffff",
+              border: "1px solid var(--foreground)",
+              color: "var(--foreground)",
+              background: "transparent",
             }}
           >
             Sign In
@@ -46,13 +49,13 @@ export function Hero() {
         className="relative z-10 max-w-3xl w-full text-center space-y-8"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
+        transition={{ duration: 0.8, ease: SNAPPY }}
       >
         {/* Coming Soon badge */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          transition={{ delay: 0.2, duration: 0.5, ease: SNAPPY }}
         >
           <span
             className="inline-block px-4 py-1.5 rounded-full text-xs font-medium tracking-wide uppercase"
@@ -71,7 +74,7 @@ export function Hero() {
           style={{ fontFamily: "var(--font-serif)" }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.7 }}
+          transition={{ delay: 0.3, duration: 0.7, ease: SNAPPY }}
         >
           Your Own OpenClaw.
           <br />
@@ -84,7 +87,7 @@ export function Hero() {
           style={{ color: "var(--muted)" }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.7 }}
+          transition={{ delay: 0.5, duration: 0.7, ease: SNAPPY }}
         >
           The easiest way to deploy your own OpenClaw instance — shell access,
           browser automation, skills, memory, everything. No DevOps required.
@@ -94,7 +97,7 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7, duration: 0.7 }}
+          transition={{ delay: 0.7, duration: 0.7, ease: SNAPPY }}
         >
           <WaitlistForm />
         </motion.div>
@@ -105,7 +108,7 @@ export function Hero() {
           style={{ color: "var(--muted)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1, duration: 0.7 }}
+          transition={{ delay: 1, duration: 0.7, ease: SNAPPY }}
         >
           Already have an invite code?{" "}
           <Link
@@ -123,7 +126,7 @@ export function Hero() {
           style={{ color: "var(--muted)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.7 }}
+          transition={{ delay: 1.2, duration: 0.7, ease: SNAPPY }}
         >
           Powered by Anthropic
         </motion.p>

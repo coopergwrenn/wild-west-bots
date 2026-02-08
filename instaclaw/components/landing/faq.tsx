@@ -41,53 +41,42 @@ export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="py-20 px-4">
+    <section className="faq-section py-16 sm:py-[12vh] px-4">
       <div className="max-w-3xl mx-auto">
         <h2
           className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] text-center mb-12"
-          style={{ fontFamily: "var(--font-serif)" }}
+          style={{ fontFamily: "var(--font-serif)", color: "#333334" }}
         >
           Frequently Asked Questions
         </h2>
-        <div className="space-y-2">
+        <div>
           {faqs.map((faq, i) => (
             <div
               key={i}
-              className="glass rounded-xl overflow-hidden"
-              style={{ border: "1px solid var(--border)" }}
+              className="faq-item"
+              data-state={openIndex === i ? "open" : "closed"}
             >
               <button
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                className="w-full text-left px-6 py-4 flex items-center justify-between cursor-pointer"
+                className="w-full text-left px-0 py-6 flex items-center justify-between cursor-pointer"
+                style={{ color: "#333334" }}
               >
-                <span className="font-medium">{faq.q}</span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="shrink-0 ml-4"
-                  style={{
-                    transform: openIndex === i ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s ease",
-                    color: "var(--muted)",
-                  }}
+                <span className="font-medium text-base">{faq.q}</span>
+                <span
+                  className="faq-icon shrink-0 ml-4 text-xl leading-none select-none"
+                  style={{ color: "#6b6b6b" }}
                 >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
+                  +
+                </span>
               </button>
-              {openIndex === i && (
+              <div className="faq-answer">
                 <p
-                  className="px-6 pb-4 text-sm leading-relaxed"
-                  style={{ color: "var(--muted)" }}
+                  className="pb-6 text-sm leading-relaxed"
+                  style={{ color: "#6b6b6b" }}
                 >
                   {faq.a}
                 </p>
-              )}
+              </div>
             </div>
           ))}
         </div>

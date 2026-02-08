@@ -49,10 +49,10 @@ export function UseCases() {
   const secondHalf = useCases.slice(8);
 
   return (
-    <section className="py-24 overflow-hidden">
+    <section className="py-16 sm:py-[12vh] overflow-hidden">
       <div className="text-center mb-12 px-4">
         <h2
-          className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+          className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-6"
           style={{ fontFamily: "var(--font-serif)" }}
         >
           Endless Possibilities

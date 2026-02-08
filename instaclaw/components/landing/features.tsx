@@ -11,6 +11,8 @@ import {
   Fingerprint,
 } from "lucide-react";
 
+const SNAPPY = [0.23, 1, 0.32, 1] as const;
+
 const features = [
   {
     icon: Zap,
@@ -58,17 +60,17 @@ const features = [
 
 export function Features() {
   return (
-    <section className="py-24 px-4">
+    <section className="py-16 sm:py-[12vh] px-4">
       <div className="max-w-5xl mx-auto">
         <motion.div
           className="text-center mb-16"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.6, ease: SNAPPY }}
         >
           <h2
-            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-6"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Everything You Need
@@ -86,7 +88,7 @@ export function Features() {
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
-              transition={{ delay: i * 0.1, duration: 0.6 }}
+              transition={{ delay: i * 0.1, duration: 0.6, ease: SNAPPY }}
             >
               <feature.icon
                 className="w-8 h-8 mb-4"

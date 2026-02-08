@@ -3,6 +3,8 @@
 import { motion } from "motion/react";
 import { X, Check } from "lucide-react";
 
+const SNAPPY = [0.23, 1, 0.32, 1] as const;
+
 const painPoints = [
   "Provision and maintain servers",
   "Configure Docker, SSH, and networking",
@@ -21,17 +23,17 @@ const benefits = [
 
 export function Comparison() {
   return (
-    <section className="py-24 px-4">
+    <section className="py-16 sm:py-[12vh] px-4">
       <div className="max-w-5xl mx-auto">
         <motion.div
           className="text-center mb-16"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.6, ease: SNAPPY }}
         >
           <h2
-            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-6"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             The Old Way vs. InstaClaw
@@ -48,7 +50,7 @@ export function Comparison() {
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: SNAPPY }}
           >
             <h3
               className="text-lg font-semibold mb-6"
@@ -79,7 +81,7 @@ export function Comparison() {
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6, delay: 0.15 }}
+            transition={{ duration: 0.6, delay: 0.15, ease: SNAPPY }}
           >
             <h3 className="text-lg font-semibold mb-6">With InstaClaw</h3>
             <ul className="space-y-4">

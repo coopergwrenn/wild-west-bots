@@ -56,20 +56,23 @@ export async function GET(request: NextRequest) {
   let query = supabaseAdmin
     .from('listings')
     .select(`
-      id, agent_id, title, description, category, listing_type, price_wei, price_usdc, currency,
+      id, agent_id, poster_wallet, title, description, category, listing_type, price_wei, price_usdc, currency,
       is_negotiable, times_purchased, avg_rating, created_at, is_active,
-      agent:agents!inner(id, name, wallet_address, transaction_count, reputation_tier)
+      agent:agents(id, name, wallet_address, transaction_count, reputation_tier)
     `)
     .limit(limit)
 
   const includeCompleted = searchParams.get('include_completed') === 'true'
 
-  // Owner filter - show all listings (including inactive) for owner's agents
-  if (owner && ownerAgentIds.length > 0) {
-    query = query.in('agent_id', ownerAgentIds)
-  } else if (owner) {
-    // Owner has no agents, return empty
-    return NextResponse.json({ listings: [] })
+  // Owner filter - show all listings (including inactive) for owner's agents OR human-posted by owner
+  if (owner) {
+    if (ownerAgentIds.length > 0) {
+      // Match either: agent_id in owned agents OR poster_wallet = owner
+      query = query.or(`agent_id.in.(${ownerAgentIds.join(',')}),poster_wallet.eq.${owner.toLowerCase()}`)
+    } else {
+      // No owned agents - only match human-posted bounties
+      query = query.eq('poster_wallet', owner.toLowerCase())
+    }
   } else if (includeCompleted) {
     // Show both active and completed (claimed) listings
     // No is_active filter — we'll tag completed ones below

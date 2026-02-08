@@ -1,7 +1,7 @@
 export function Footer() {
   return (
     <footer
-      className="py-12 px-4 border-t"
+      className="py-16 px-4 border-t"
       style={{ borderColor: "var(--border)" }}
     >
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
