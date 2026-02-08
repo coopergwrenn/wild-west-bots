@@ -1,136 +1,83 @@
 /**
  * Coinbase Developer Platform (CDP) Smart Wallet Client
  *
- * Provides programmatic wallet creation and management via CDP API.
+ * Uses the official @coinbase/cdp-sdk which handles JWT auth internally.
  * Reference: https://docs.cdp.coinbase.com
  */
 
-const CDP_API_URL = 'https://api.developer.coinbase.com';
+import { CdpClient } from '@coinbase/cdp-sdk'
 
-interface CdpWalletResponse {
-  id: string;
-  default_address: {
-    address_id: string;
-    wallet_id: string;
-    network_id: string;
-  };
-}
+let _client: InstanceType<typeof CdpClient> | null = null
 
-interface CdpBalanceResponse {
-  data: Array<{
-    amount: string;
-    asset: {
-      asset_id: string;
-      network_id: string;
-      decimals: number;
-    };
-  }>;
+function getClient(): InstanceType<typeof CdpClient> {
+  if (!_client) {
+    const apiKeyId = process.env.CDP_API_KEY_ID
+    const apiKeySecret = process.env.CDP_API_KEY_SECRET
+    const walletSecret = process.env.CDP_WALLET_SECRET
+
+    if (!apiKeyId || !apiKeySecret) {
+      throw new Error('CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set')
+    }
+
+    _client = new CdpClient({
+      apiKeyId,
+      apiKeySecret,
+      walletSecret: walletSecret || undefined,
+    })
+  }
+  return _client
 }
 
 /**
- * Create a new CDP wallet on Base mainnet
+ * Create a new CDP EVM account (server-managed key).
+ * Returns the account address — this is the agent's wallet.
  */
 export async function createCdpWallet(): Promise<{ walletId: string; address: string }> {
-  const apiKeyId = process.env.CDP_API_KEY_ID;
-  const apiKeySecret = process.env.CDP_API_KEY_SECRET;
-
-  if (!apiKeyId || !apiKeySecret) {
-    throw new Error('CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set');
-  }
-
-  // Use the Coinbase SDK or direct REST API
-  // For now, use REST API directly
-  const response = await fetch(`${CDP_API_URL}/platform/v1/wallets`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKeySecret}`,
-      'X-Api-Key-Id': apiKeyId,
-    },
-    body: JSON.stringify({
-      network_id: 'base-mainnet',
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`CDP wallet creation failed: ${response.status} ${error}`);
-  }
-
-  const wallet: CdpWalletResponse = await response.json();
+  const cdp = getClient()
+  const account = await cdp.evm.createAccount()
 
   return {
-    walletId: wallet.id,
-    address: wallet.default_address.address_id,
-  };
+    walletId: account.address, // CDP SDK uses address as the account identifier
+    address: account.address,
+  }
 }
 
 /**
- * Get the address for a CDP wallet
+ * Get the address for a CDP account
  */
-export async function getCdpWalletAddress(walletId: string): Promise<string> {
-  const apiKeyId = process.env.CDP_API_KEY_ID;
-  const apiKeySecret = process.env.CDP_API_KEY_SECRET;
-
-  if (!apiKeyId || !apiKeySecret) {
-    throw new Error('CDP credentials not configured');
-  }
-
-  const response = await fetch(`${CDP_API_URL}/platform/v1/wallets/${walletId}`, {
-    headers: {
-      'Authorization': `Bearer ${apiKeySecret}`,
-      'X-Api-Key-Id': apiKeyId,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch CDP wallet: ${response.status}`);
-  }
-
-  const wallet: CdpWalletResponse = await response.json();
-  return wallet.default_address.address_id;
+export async function getCdpWalletAddress(addressOrName: string): Promise<string> {
+  const cdp = getClient()
+  const account = await cdp.evm.getAccount({ address: addressOrName as `0x${string}` })
+  return account.address
 }
 
 /**
- * Get USDC balance for a CDP wallet
+ * Get USDC balance for a CDP account on Base
  */
-export async function getCdpBalance(walletId: string): Promise<string> {
-  const apiKeyId = process.env.CDP_API_KEY_ID;
-  const apiKeySecret = process.env.CDP_API_KEY_SECRET;
+export async function getCdpBalance(address: string): Promise<string> {
+  const cdp = getClient()
+  const result = await cdp.evm.listTokenBalances({
+    address: address as `0x${string}`,
+    network: 'base',
+  })
 
-  if (!apiKeyId || !apiKeySecret) {
-    throw new Error('CDP credentials not configured');
-  }
-
-  const response = await fetch(
-    `${CDP_API_URL}/platform/v1/wallets/${walletId}/balances`,
-    {
-      headers: {
-        'Authorization': `Bearer ${apiKeySecret}`,
-        'X-Api-Key-Id': apiKeyId,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch CDP balance: ${response.status}`);
-  }
-
-  const data: CdpBalanceResponse = await response.json();
-  const usdcBalance = data.data.find(b => b.asset.asset_id === 'usdc');
-  return usdcBalance?.amount || '0';
+  const usdcBalance = result.balances.find(
+    (b: { token: { contractAddress?: string } }) =>
+      b.token.contractAddress?.toLowerCase() === '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'
+  )
+  return usdcBalance ? String(usdcBalance.amount) : '0'
 }
 
 /**
  * Check if CDP credentials are configured
  */
 export function isCdpConfigured(): boolean {
-  return !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET);
+  return !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET)
 }
 
 /**
- * Validate a CDP wallet ID format
+ * Validate a CDP wallet address format (standard 0x address)
  */
 export function isValidCdpWalletId(walletId: string): boolean {
-  return /^[a-f0-9-]{36}$/.test(walletId);
+  return /^0x[a-fA-F0-9]{40}$/.test(walletId)
 }
