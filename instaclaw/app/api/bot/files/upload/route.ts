@@ -84,15 +84,19 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-      // Ensure parent directory exists
+      // Ensure parent directory exists — dest is already validated against
+      // a strict character allowlist (alphanumeric, _, :, ., -, /, ~) so
+      // it is safe to interpolate after base64 encoding for extra safety.
+      const destB64 = Buffer.from(dest, "utf-8").toString("base64");
       const parentDir = dest.substring(0, dest.lastIndexOf("/"));
       if (parentDir) {
-        await ssh.execCommand(`mkdir -p '${parentDir}'`);
+        const parentB64 = Buffer.from(parentDir, "utf-8").toString("base64");
+        await ssh.execCommand(`mkdir -p "$(echo '${parentB64}' | base64 -d)"`);
       }
 
       // Write file via base64 decode (handles binary safely)
       const result = await ssh.execCommand(
-        `echo '${b64}' | base64 -d > '${dest}'`
+        `echo '${b64}' | base64 -d > "$(echo '${destB64}' | base64 -d)"`
       );
 
       if (result.code !== 0) {

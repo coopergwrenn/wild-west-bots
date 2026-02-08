@@ -50,13 +50,22 @@ export async function GET(req: NextRequest) {
       });
 
       const timestamp = new Date().toISOString().split("T")[0];
-      const backupName = `${vm.name ?? vm.id}-${timestamp}.tar.gz`;
+      // Sanitize VM name/id — only allow safe characters for filenames
+      const safeVmName = (vm.name ?? vm.id).replace(/[^A-Za-z0-9_.\-]/g, "_");
+      const backupName = `${safeVmName}-${timestamp}.tar.gz`;
       const backupPath = `/tmp/${backupName}`;
       const s3Path = `s3://${s3Bucket}/backups/${backupName}`;
 
+      // Validate S3 endpoint — only allow valid hostname characters
+      if (!/^[A-Za-z0-9.\-:]+$/.test(s3Endpoint)) {
+        errors.push(`${vm.name}: invalid S3 endpoint`);
+        ssh.dispose();
+        continue;
+      }
+
       // Create tar of ~/.openclaw/
       const tarResult = await ssh.execCommand(
-        `tar -czf ${backupPath} -C $HOME .openclaw/ 2>/dev/null`
+        `tar -czf '${backupPath}' -C $HOME .openclaw/ 2>/dev/null`
       );
 
       if (tarResult.code !== 0) {
@@ -66,17 +75,17 @@ export async function GET(req: NextRequest) {
       }
 
       // Get file size
-      const sizeResult = await ssh.execCommand(`stat -c '%s' ${backupPath} 2>/dev/null || echo 0`);
+      const sizeResult = await ssh.execCommand(`stat -c '%s' '${backupPath}' 2>/dev/null || echo 0`);
       const sizeBytes = parseInt(sizeResult.stdout.trim()) || 0;
 
       // Upload to S3-compatible storage (if s3cmd is available)
       const uploadResult = await ssh.execCommand(
-        `s3cmd put ${backupPath} ${s3Path} --host=${s3Endpoint} 2>/dev/null || ` +
-        `aws s3 cp ${backupPath} ${s3Path} --endpoint-url=https://${s3Endpoint} 2>/dev/null || true`
+        `s3cmd put '${backupPath}' '${s3Path}' --host='${s3Endpoint}' 2>/dev/null || ` +
+        `aws s3 cp '${backupPath}' '${s3Path}' --endpoint-url='https://${s3Endpoint}' 2>/dev/null || true`
       );
 
       // Clean up local backup
-      await ssh.execCommand(`rm -f ${backupPath}`);
+      await ssh.execCommand(`rm -f '${backupPath}'`);
       ssh.dispose();
 
       // Record backup in DB
@@ -107,8 +116,8 @@ export async function GET(req: NextRequest) {
                 privateKey: Buffer.from(process.env.SSH_PRIVATE_KEY_B64!, "base64").toString("utf-8"),
               });
               await delSsh.execCommand(
-                `s3cmd del '${old.backup_path}' --host=${s3Endpoint} 2>/dev/null || ` +
-                `aws s3 rm '${old.backup_path}' --endpoint-url=https://${s3Endpoint} 2>/dev/null || true`
+                `s3cmd del '${old.backup_path}' --host='${s3Endpoint}' 2>/dev/null || ` +
+                `aws s3 rm '${old.backup_path}' --endpoint-url='https://${s3Endpoint}' 2>/dev/null || true`
               );
               delSsh.dispose();
             } catch {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { encryptApiKey } from "@/lib/security";
-import { updateSystemPrompt, updateApiKey } from "@/lib/ssh";
+import { updateSystemPrompt, updateApiKey, updateChannelToken } from "@/lib/ssh";
 import { logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
@@ -94,31 +94,7 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        // SSH to VM and configure Discord channel
-        const { NodeSSH } = await import("node-ssh");
-        const ssh = new NodeSSH();
-        await ssh.connect({
-          host: vm.ip_address,
-          port: vm.ssh_port,
-          username: vm.ssh_user,
-          privateKey: Buffer.from(process.env.SSH_PRIVATE_KEY_B64!, "base64").toString("utf-8"),
-        });
-
-        const NVM = 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"';
-        const script = [
-          '#!/bin/bash',
-          NVM,
-          `openclaw config set channels.discord.botToken '${discordToken}'`,
-          `openclaw config set channels.discord.allowFrom '["*"]'`,
-          'pkill -f "openclaw gateway" 2>/dev/null || true',
-          'sleep 2',
-          'nohup openclaw gateway run --bind lan --port 18789 --force > /tmp/openclaw-gateway.log 2>&1 &',
-          'sleep 3',
-        ].join('\n');
-
-        await ssh.execCommand(`cat > /tmp/ic-discord.sh << 'ICEOF'\n${script}\nICEOF`);
-        await ssh.execCommand('bash /tmp/ic-discord.sh; rm -f /tmp/ic-discord.sh');
-        ssh.dispose();
+        await updateChannelToken(vm, "discord", { botToken: discordToken });
 
         // Update DB
         const currentChannels: string[] = vm.channels_enabled ?? ["telegram"];
@@ -146,30 +122,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const { NodeSSH: SSH2 } = await import("node-ssh");
-        const sshSlack = new SSH2();
-        await sshSlack.connect({
-          host: vm.ip_address,
-          port: vm.ssh_port,
-          username: vm.ssh_user,
-          privateKey: Buffer.from(process.env.SSH_PRIVATE_KEY_B64!, "base64").toString("utf-8"),
+        await updateChannelToken(vm, "slack", {
+          botToken: slackToken,
+          ...(slackSigningSecret ? { signingSecret: slackSigningSecret } : {}),
         });
-
-        const NVM2 = 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"';
-        const slackScript = [
-          '#!/bin/bash',
-          NVM2,
-          `openclaw config set channels.slack.botToken '${slackToken}'`,
-          ...(slackSigningSecret ? [`openclaw config set channels.slack.signingSecret '${slackSigningSecret}'`] : []),
-          'pkill -f "openclaw gateway" 2>/dev/null || true',
-          'sleep 2',
-          'nohup openclaw gateway run --bind lan --port 18789 --force > /tmp/openclaw-gateway.log 2>&1 &',
-          'sleep 3',
-        ].join('\n');
-
-        await sshSlack.execCommand(`cat > /tmp/ic-slack.sh << 'ICEOF'\n${slackScript}\nICEOF`);
-        await sshSlack.execCommand('bash /tmp/ic-slack.sh; rm -f /tmp/ic-slack.sh');
-        sshSlack.dispose();
 
         const slackChannels: string[] = vm.channels_enabled ?? ["telegram"];
         if (!slackChannels.includes("slack")) {
@@ -193,30 +149,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const { NodeSSH: SSH3 } = await import("node-ssh");
-        const sshWa = new SSH3();
-        await sshWa.connect({
-          host: vm.ip_address,
-          port: vm.ssh_port,
-          username: vm.ssh_user,
-          privateKey: Buffer.from(process.env.SSH_PRIVATE_KEY_B64!, "base64").toString("utf-8"),
+        await updateChannelToken(vm, "whatsapp", {
+          accessToken: whatsappToken,
+          ...(whatsappPhoneId ? { phoneNumberId: whatsappPhoneId } : {}),
         });
-
-        const NVM3 = 'export NVM_DIR="$HOME/.nvm" && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"';
-        const waScript = [
-          '#!/bin/bash',
-          NVM3,
-          `openclaw config set channels.whatsapp.accessToken '${whatsappToken}'`,
-          ...(whatsappPhoneId ? [`openclaw config set channels.whatsapp.phoneNumberId '${whatsappPhoneId}'`] : []),
-          'pkill -f "openclaw gateway" 2>/dev/null || true',
-          'sleep 2',
-          'nohup openclaw gateway run --bind lan --port 18789 --force > /tmp/openclaw-gateway.log 2>&1 &',
-          'sleep 3',
-        ].join('\n');
-
-        await sshWa.execCommand(`cat > /tmp/ic-wa.sh << 'ICEOF'\n${waScript}\nICEOF`);
-        await sshWa.execCommand('bash /tmp/ic-wa.sh; rm -f /tmp/ic-wa.sh');
-        sshWa.dispose();
 
         const waChannels: string[] = vm.channels_enabled ?? ["telegram"];
         if (!waChannels.includes("whatsapp")) {

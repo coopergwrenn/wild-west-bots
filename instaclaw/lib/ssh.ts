@@ -690,6 +690,44 @@ export async function setupTLS(
   }
 }
 
+export async function updateChannelToken(
+  vm: VMRecord,
+  channel: "discord" | "slack" | "whatsapp",
+  tokens: Record<string, string>
+): Promise<void> {
+  // Validate all token values before they reach a shell
+  for (const [key, value] of Object.entries(tokens)) {
+    assertSafeShellArg(value, `${channel}.${key}`);
+  }
+
+  const ssh = await connectSSH(vm);
+  try {
+    const configCmds: string[] = [];
+    for (const [key, value] of Object.entries(tokens)) {
+      configCmds.push(`openclaw config set channels.${channel}.${key} '${value}'`);
+    }
+
+    if (channel === "discord") {
+      configCmds.push(`openclaw config set channels.discord.allowFrom '["*"]'`);
+    }
+
+    const script = [
+      '#!/bin/bash',
+      NVM_PREAMBLE,
+      ...configCmds,
+      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'sleep 2',
+      `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
+      'sleep 3',
+    ].join('\n');
+
+    await ssh.execCommand(`cat > /tmp/ic-channel.sh << 'ICEOF'\n${script}\nICEOF`);
+    await ssh.execCommand('bash /tmp/ic-channel.sh; rm -f /tmp/ic-channel.sh');
+  } finally {
+    ssh.dispose();
+  }
+}
+
 export async function restartGateway(vm: VMRecord): Promise<boolean> {
   const ssh = await connectSSH(vm);
   try {

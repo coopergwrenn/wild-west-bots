@@ -25,13 +25,13 @@ export function Footer() {
           className="flex gap-6 text-sm"
           style={{ color: "var(--muted)" }}
         >
-          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
+          <a href="/privacy" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Privacy
           </a>
-          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
+          <a href="/terms" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Terms
           </a>
-          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
+          <a href="mailto:cooper@clawlancer.com" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Contact
           </a>
         </div>
