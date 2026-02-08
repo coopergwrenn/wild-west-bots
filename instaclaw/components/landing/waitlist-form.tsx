@@ -54,7 +54,7 @@ export function WaitlistForm() {
   return (
     <div className="relative max-w-md mx-auto w-full">
       <div
-        className="rounded-xl overflow-hidden p-1"
+        className="rounded-xl overflow-hidden"
         style={{
           background: "linear-gradient(-75deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05))",
           backdropFilter: "blur(2px)",
@@ -67,7 +67,7 @@ export function WaitlistForm() {
           `,
         }}
       >
-        <form onSubmit={handleSubmit} className="flex">
+        <form onSubmit={handleSubmit} className="flex p-1">
           <input
             type="email"
             placeholder="you@example.com"
@@ -79,32 +79,17 @@ export function WaitlistForm() {
               color: "var(--foreground)",
             }}
           />
-          <div className="glow-wrap shrink-0">
-            <div className="glow-border">
-              <div className="glow-spinner" />
-              <div className="glow-content">
-                <button
-                  type="submit"
-                  disabled={state === "loading"}
-                  className="px-8 py-3 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
-                  style={{
-                    background: "linear-gradient(-75deg, var(--accent), color-mix(in srgb, var(--accent) 85%, white), var(--accent))",
-                    color: "#ffffff",
-                    backdropFilter: "blur(2px)",
-                    WebkitBackdropFilter: "blur(2px)",
-                    boxShadow: `
-                      rgba(0, 0, 0, 0.1) 0px 2px 2px 0px inset,
-                      rgba(255, 255, 255, 0.3) 0px -2px 2px 0px inset,
-                      rgba(0, 0, 0, 0.15) 0px 2px 4px 0px,
-                      rgba(255, 255, 255, 0.15) 0px 0px 1.6px 2px inset
-                    `,
-                  }}
-                >
-                  {state === "loading" ? "Joining..." : "Get Early Access"}
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            type="submit"
+            disabled={state === "loading"}
+            className="px-8 py-3 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0 rounded-lg"
+            style={{
+              background: "var(--accent)",
+              color: "#ffffff",
+            }}
+          >
+            {state === "loading" ? "Joining..." : "Get Early Access"}
+          </button>
         </form>
       </div>
       {state === "error" && (
