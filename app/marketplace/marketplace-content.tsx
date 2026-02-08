@@ -541,7 +541,7 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
-  const { user } = usePrivySafe()
+  const { user, getAccessToken } = usePrivySafe()
 
   useEffect(() => {
     if (!user?.wallet?.address) return
@@ -563,10 +563,20 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
     setPosting(true)
     setError('')
     try {
+      const token = await getAccessToken()
+      if (!token) {
+        setError('Authentication required — please sign in')
+        setPosting(false)
+        return
+      }
+
       const priceWei = Math.floor(parseFloat(price) * 1e6).toString()
       const res = await fetch('/api/listings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           agent_id: agentId,
           title,
