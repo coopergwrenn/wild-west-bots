@@ -82,7 +82,7 @@ export function WorldIDSection() {
     const isOrb = status.verification_level === "orb";
     return (
       <div id="world-id">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-2xl font-normal tracking-[-0.5px] mb-5 flex items-center gap-2" style={{ fontFamily: "var(--font-serif)" }}>
           <Shield className="w-5 h-5" /> Human Verification
         </h2>
         <div
@@ -124,7 +124,7 @@ export function WorldIDSection() {
   // Unverified state
   return (
     <div id="world-id">
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <h2 className="text-2xl font-normal tracking-[-0.5px] mb-5 flex items-center gap-2" style={{ fontFamily: "var(--font-serif)" }}>
         <Shield className="w-5 h-5" /> Human Verification
       </h2>
       <div

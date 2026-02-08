@@ -12,6 +12,7 @@ const instrumentSerif = Instrument_Serif({
   weight: "400",
   style: ["normal", "italic"],
   variable: "--font-serif",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -40,6 +41,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="preload"
+          href="/_next/static/media/instrument-serif-latin-400-normal.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body className={`${inter.className} ${instrumentSerif.variable}`}>
         <Providers>{children}</Providers>
       </body>
