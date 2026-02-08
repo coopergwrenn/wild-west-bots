@@ -1,13 +1,19 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
+import authConfig from "@/lib/auth.config";
 
 /**
  * Next.js middleware for centralized route protection.
+ *
+ * Uses the Edge-compatible auth config (auth.config.ts) — no server-side
+ * imports. The full auth config with Supabase callbacks lives in auth.ts.
  *
  * Defense-in-depth: individual route handlers still perform their own auth
  * checks. This middleware provides a first layer of protection so new routes
  * cannot accidentally be exposed without authentication.
  */
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isAuthenticated = !!req.auth?.user;
@@ -41,6 +47,7 @@ export default auth((req) => {
     "/api/gateway",
     "/api/waitlist",
     "/api/invite/validate",
+    "/api/health",
   ];
 
   const isAPI = pathname.startsWith("/api/");

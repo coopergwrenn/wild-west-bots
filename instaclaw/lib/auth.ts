@@ -1,20 +1,12 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import { cookies } from "next/headers";
 import { getSupabase } from "./supabase";
 import { sendWelcomeEmail } from "./email";
 import { logger } from "./logger";
+import authConfig from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
-  pages: {
-    signIn: "/signup",
-  },
+  ...authConfig,
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider !== "google") return false;
@@ -118,8 +110,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session;
     },
-  },
-  session: {
-    strategy: "jwt",
   },
 });
