@@ -246,7 +246,7 @@ export default function DeployingPage() {
     }
 
     // Done / pending / error — static text
-    let color = "rgba(255,255,255,0.25)";
+    let color = "#999999";
     if (step.status === "done") color = "#22c55e";
     if (step.status === "error") color = "#ef4444";
 
@@ -281,8 +281,9 @@ export default function DeployingPage() {
           -webkit-text-fill-color: transparent;
           animation: shimmer 2.5s ease-in-out infinite;
           font-weight: 600;
-          font-size: 1rem;
-          line-height: 1.5rem;
+          font-size: 1.125rem;
+          line-height: 1.75rem;
+          letter-spacing: -0.01em;
         }
 
         @keyframes shimmer {
@@ -311,106 +312,123 @@ export default function DeployingPage() {
 
         /* ===== Progress bar glow ===== */
         @keyframes bar-glow {
-          0%, 100% { box-shadow: 0 0 6px rgba(249, 115, 22, 0.3); }
-          50%      { box-shadow: 0 0 14px rgba(249, 115, 22, 0.6); }
+          0%, 100% { box-shadow: 0 0 8px rgba(220, 103, 67, 0.3); }
+          50%      { box-shadow: 0 0 16px rgba(220, 103, 67, 0.5); }
         }
       `}</style>
 
-      <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center px-6 py-16"
+        style={{ background: "#f8f7f4" }}
+      >
         {/* Title */}
-        <div className="mb-10 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">
+        <div className="mb-12 text-center">
+          <h1
+            className="text-4xl font-normal tracking-[-0.5px] mb-3"
+            style={{ fontFamily: "var(--font-serif)", color: "#333334" }}
+          >
             Deploying Your Instance
           </h1>
-          <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>
+          <p className="text-base" style={{ color: "#666666" }}>
             Setting up your dedicated OpenClaw VM
           </p>
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full max-w-md mb-10">
-          <div
-            className="h-1 rounded-full overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-          >
+        {/* Progress bar container with clean white background */}
+        <div
+          className="w-full max-w-lg mb-12 p-8 rounded-lg"
+          style={{
+            background: "#ffffff",
+            border: "1px solid rgba(0, 0, 0, 0.1)",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          {/* Progress bar */}
+          <div className="mb-8">
             <div
-              className="h-full rounded-full transition-all duration-700 ease-out"
-              style={{
-                width: `${progress}%`,
-                background: "linear-gradient(90deg, #f97316, #fbbf24)",
-                animation:
-                  progress > 0 && progress < 100
-                    ? "bar-glow 2s ease-in-out infinite"
-                    : "none",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Steps */}
-        <div className="w-full max-w-md space-y-6">
-          {steps.map((step) => (
-            <div
-              key={step.id}
-              className="flex items-center gap-4"
-              style={{ minHeight: "36px" }}
+              className="h-1.5 rounded-full overflow-hidden"
+              style={{ background: "rgba(220, 103, 67, 0.1)" }}
             >
-              {/* Icon column */}
-              <div className="w-7 h-7 flex items-center justify-center flex-shrink-0">
-                {step.status === "done" && (
-                  <div className={justCompleted.has(step.id) ? "check-bounce" : ""}>
-                    <Check
-                      className="w-5 h-5"
-                      style={{ color: "#22c55e" }}
-                      strokeWidth={3}
-                    />
-                  </div>
-                )}
-                {step.status === "active" && (
-                  <div
-                    className="w-2.5 h-2.5 rounded-full active-dot"
-                    style={{ background: "#f97316" }}
-                  />
-                )}
-                {step.status === "pending" && (
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.12)" }}
-                  />
-                )}
-                {step.status === "error" && (
-                  <AlertCircle className="w-5 h-5" style={{ color: "#ef4444" }} />
-                )}
-              </div>
-
-              {/* Text column */}
-              <div className="flex-1 text-base font-medium">
-                {renderStepContent(step)}
-              </div>
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${progress}%`,
+                  background: "#DC6743",
+                  animation:
+                    progress > 0 && progress < 100
+                      ? "bar-glow 2s ease-in-out infinite"
+                      : "none",
+                }}
+              />
             </div>
-          ))}
+          </div>
+
+          {/* Steps */}
+          <div className="space-y-7">
+            {steps.map((step) => (
+              <div
+                key={step.id}
+                className="flex items-center gap-4"
+                style={{ minHeight: "40px" }}
+              >
+                {/* Icon column */}
+                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                  {step.status === "done" && (
+                    <div className={justCompleted.has(step.id) ? "check-bounce" : ""}>
+                      <Check
+                        className="w-5 h-5"
+                        style={{ color: "#22c55e" }}
+                        strokeWidth={3}
+                      />
+                    </div>
+                  )}
+                  {step.status === "active" && (
+                    <div
+                      className="w-3 h-3 rounded-full active-dot"
+                      style={{ background: "#DC6743" }}
+                    />
+                  )}
+                  {step.status === "pending" && (
+                    <div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: "rgba(0, 0, 0, 0.15)" }}
+                    />
+                  )}
+                  {step.status === "error" && (
+                    <AlertCircle className="w-5 h-5" style={{ color: "#ef4444" }} />
+                  )}
+                </div>
+
+                {/* Text column */}
+                <div className="flex-1 text-lg font-medium">
+                  {renderStepContent(step)}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* ---- Error / Retry ---- */}
         {configureFailed && !retrying && (
           <div
-            className="mt-10 rounded-xl p-6 max-w-md w-full space-y-4 border"
+            className="rounded-lg p-8 max-w-lg w-full space-y-4"
             style={{
-              background: "rgba(255,255,255,0.03)",
-              borderColor: "rgba(239,68,68,0.2)",
+              background: "#ffffff",
+              border: "2px solid #ef4444",
+              boxShadow: "0 4px 12px rgba(239, 68, 68, 0.1)",
             }}
           >
             {maxAttemptsReached ? (
               <>
-                <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>
+                <p className="text-base font-semibold" style={{ color: "#ef4444" }}>
                   Configuration failed after multiple attempts.
                 </p>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                <p className="text-sm" style={{ color: "#666666" }}>
                   Please contact support at{" "}
                   <a
                     href="mailto:cooper@clawlancer.com"
                     className="underline hover:opacity-80 transition-opacity"
-                    style={{ color: "#f97316" }}
+                    style={{ color: "#DC6743" }}
                   >
                     cooper@clawlancer.com
                   </a>{" "}
@@ -419,19 +437,19 @@ export default function DeployingPage() {
               </>
             ) : (
               <>
-                <p className="text-sm font-semibold" style={{ color: "#ef4444" }}>
+                <p className="text-base font-semibold" style={{ color: "#ef4444" }}>
                   Configuration hit a snag.
                 </p>
-                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                <p className="text-sm" style={{ color: "#666666" }}>
                   This sometimes happens during initial setup. Retrying usually
                   fixes it.
                 </p>
                 <button
                   onClick={handleRetry}
-                  className="w-full px-4 py-3 rounded-lg text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full px-6 py-4 rounded-lg text-base font-semibold transition-all cursor-pointer flex items-center justify-center gap-2"
                   style={{
-                    background: "linear-gradient(90deg, #f97316, #fbbf24)",
-                    color: "#000",
+                    background: "#DC6743",
+                    color: "#ffffff",
                   }}
                 >
                   <RotateCcw className="w-4 h-4" />

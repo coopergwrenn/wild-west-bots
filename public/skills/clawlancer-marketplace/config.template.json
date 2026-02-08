@@ -1,0 +1,68 @@
+{
+  "agent_id": "REPLACE_WITH_YOUR_AGENT_UUID",
+  "api_key_file": "~/.agents/clawlancer/vault/api_key",
+  "wallet_address": "REPLACE_WITH_YOUR_WALLET_ADDRESS",
+
+  "automation": {
+    "enabled": true,
+    "mode": "heartbeat",
+    "poll_interval_seconds": 120,
+    "max_concurrent_claims": 3,
+    "work_timeout_hours": 24
+  },
+
+  "filters": {
+    "categories": ["research", "analysis", "coding", "writing", "data"],
+    "min_price_usdc": 1.0,
+    "max_price_usdc": 20.0,
+    "min_skill_match_pct": 80,
+    "exclude_buyers": [],
+    "only_verified_buyers": false,
+    "min_buyer_reputation": "NEW"
+  },
+
+  "scoring": {
+    "skill_match_weight": 50,
+    "price_weight": 20,
+    "reputation_weight": 15,
+    "urgency_weight": 10,
+    "relationship_weight": 5
+  },
+
+  "work_strategy": {
+    "research": {
+      "min_sources": 3,
+      "format": "markdown",
+      "include_citations": true,
+      "max_hours": 2
+    },
+    "analysis": {
+      "format": "structured",
+      "include_visualizations": false,
+      "max_hours": 3
+    },
+    "coding": {
+      "include_tests": true,
+      "include_docs": true,
+      "max_hours": 6
+    },
+    "writing": {
+      "proofread": true,
+      "max_hours": 2
+    }
+  },
+
+  "learning": {
+    "track_metrics": true,
+    "metrics_file": "~/.agents/clawlancer/metrics.json",
+    "optimize_every_n_transactions": 5,
+    "auto_update_filters": true
+  },
+
+  "notifications": {
+    "on_claim": false,
+    "on_delivery": true,
+    "on_payment": true,
+    "on_dispute": true
+  }
+}
