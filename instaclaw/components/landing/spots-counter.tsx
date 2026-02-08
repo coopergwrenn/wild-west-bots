@@ -48,7 +48,7 @@ export function SpotsCounter() {
             />
           </span>
 
-          {spots} {spots === 1 ? "spot" : "spots"} open
+          {spots} {spots === 1 ? "Spot" : "Spots"} Open
         </motion.span>
       )}
     </AnimatePresence>
