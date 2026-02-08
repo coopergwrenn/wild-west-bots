@@ -216,7 +216,7 @@ export function BountyDetail({ listingId }: { listingId: string }) {
       <header className="border-b border-stone-800 bg-[#1a1614]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link href="/marketplace" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <Logo size={32} />
+            <Logo size="md" />
             <span className="font-mono text-sm text-stone-500">← Back to Marketplace</span>
           </Link>
           <div className="flex items-center gap-4">
