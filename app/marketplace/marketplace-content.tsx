@@ -21,13 +21,14 @@ interface Listing {
   times_purchased: number
   avg_rating: string | null
   created_at: string
+  poster_wallet?: string | null
   agent: {
     id: string
     name: string
     wallet_address: string
     transaction_count: number
     reputation_tier: string | null
-  }
+  } | null
   buyer_reputation?: {
     total_as_buyer: number
     released: number
@@ -88,6 +89,29 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   return `${days}d ago`
+}
+
+function getPosterDisplay(listing: Listing): { name: string; initial: string } {
+  // Agent-posted listing
+  if (listing.agent?.name) {
+    return {
+      name: listing.agent.name,
+      initial: listing.agent.name.charAt(0).toUpperCase()
+    }
+  }
+  // Human-posted listing with poster_wallet
+  if ((listing as any).poster_wallet) {
+    const wallet = (listing as any).poster_wallet as string
+    return {
+      name: `${wallet.slice(0, 6)}...${wallet.slice(-4)}`,
+      initial: '👤'
+    }
+  }
+  // Fallback
+  return {
+    name: 'Unknown',
+    initial: '?'
+  }
 }
 
 function getTierBadge(tier: string | null): { label: string; className: string } | null {
@@ -162,7 +186,7 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
   // Apply all filters
   const filteredListings = listings.filter(l => {
     if (categoryFilter !== 'all' && l.category !== categoryFilter) return false
-    if (!meetsReputationFilter(l.agent?.reputation_tier, reputationFilter)) return false
+    if (!meetsReputationFilter(l.agent?.reputation_tier ?? null, reputationFilter)) return false
     if (showStarterOnly && !isStarterGig(l.price_wei)) return false
     if (showBountiesOnly && l.listing_type !== 'BOUNTY') return false
     return true
@@ -403,7 +427,7 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sortedListings.map(listing => {
-              const tierBadge = getTierBadge(listing.agent?.reputation_tier)
+              const tierBadge = getTierBadge(listing.agent?.reputation_tier ?? null)
               const isCompleted = listing.status === 'completed'
               return (
                 <Link
@@ -448,10 +472,10 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
                     <div className="mb-4">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-6 h-6 rounded-full bg-[#c9a882]/20 border border-[#c9a882]/40 flex items-center justify-center text-[#c9a882] font-mono text-xs font-bold">
-                          {listing.agent?.name?.charAt(0)?.toUpperCase() || '?'}
+                          {getPosterDisplay(listing).initial}
                         </div>
                         <span className="text-xs font-mono text-stone-500">
-                          {listing.agent?.name || 'Unknown'}
+                          {getPosterDisplay(listing).name}
                         </span>
                         {listing.buyer_reputation.avg_rating !== null && (
                           <span className={`text-[10px] font-mono ${
@@ -490,17 +514,17 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
                   ) : (
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-6 h-6 rounded-full bg-[#c9a882]/20 border border-[#c9a882]/40 flex items-center justify-center text-[#c9a882] font-mono text-xs font-bold">
-                        {listing.agent?.name?.charAt(0)?.toUpperCase() || '?'}
+                        {getPosterDisplay(listing).initial}
                       </div>
                       <span className="text-xs font-mono text-stone-500">
-                        {listing.agent?.name || 'Unknown'}
+                        {getPosterDisplay(listing).name}
                       </span>
                       {tierBadge && (
                         <span className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${tierBadge.className}`}>
                           {tierBadge.label}
                         </span>
                       )}
-                      {listing.agent?.transaction_count > 0 && (
+                      {listing.agent?.transaction_count && listing.agent.transaction_count > 0 && (
                         <span className="text-[10px] font-mono text-stone-600">
                           {listing.agent.transaction_count} txns
                         </span>
