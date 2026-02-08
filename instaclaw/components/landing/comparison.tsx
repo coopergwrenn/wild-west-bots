@@ -30,7 +30,10 @@ export function Comparison() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             The Old Way vs. InstaClaw
           </h2>
           <p style={{ color: "var(--muted)" }}>
@@ -71,8 +74,7 @@ export function Comparison() {
           <motion.div
             className="glass rounded-xl p-8"
             style={{
-              border: "1px solid rgba(255, 255, 255, 0.3)",
-              boxShadow: "0 0 40px rgba(255, 255, 255, 0.05)",
+              border: "2px solid var(--accent)",
             }}
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -87,7 +89,8 @@ export function Comparison() {
                   className="flex items-start gap-3 text-sm"
                 >
                   <Check
-                    className="w-4 h-4 mt-0.5 shrink-0 text-white"
+                    className="w-4 h-4 mt-0.5 shrink-0"
+                    style={{ color: "var(--accent)" }}
                   />
                   {benefit}
                 </li>

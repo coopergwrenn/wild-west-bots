@@ -69,17 +69,11 @@ export function WaitlistForm() {
       <button
         type="submit"
         disabled={state === "loading"}
-        className="px-6 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+        className="px-6 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
         style={{
-          background: "#ffffff",
-          color: "#000000",
+          background: "var(--accent)",
+          color: "#ffffff",
         }}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.background = "rgba(255, 255, 255, 0.9)")
-        }
-        onMouseLeave={(e) =>
-          (e.currentTarget.style.background = "#ffffff")
-        }
       >
         {state === "loading" ? "Joining..." : "Get Early Access"}
       </button>

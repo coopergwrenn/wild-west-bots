@@ -79,6 +79,26 @@
   animation-play-state: paused;
 }
 
+/* Scoped light theme for landing page */
+[data-theme="landing"] {
+  --background: #f8f7f4;
+  --foreground: #333334;
+  --muted: #6b6b6b;
+  --card: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --accent: #2b5e49;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+[data-theme="landing"] .glass {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
 /* Glassmorphism utility */
 .glass {
   background: rgba(10, 10, 10, 0.6);

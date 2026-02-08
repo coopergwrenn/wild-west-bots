@@ -47,7 +47,10 @@ export function Pricing() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             Simple, Transparent Pricing
           </h2>
           <p style={{ color: "var(--muted)" }} className="mb-8">
@@ -56,25 +59,25 @@ export function Pricing() {
 
           {/* BYOK toggle */}
           <div className="inline-flex items-center gap-3 text-sm">
-            <span style={{ color: isByok ? "var(--muted)" : "#ffffff" }}>
+            <span style={{ color: isByok ? "var(--muted)" : "var(--foreground)" }}>
               All-Inclusive
             </span>
             <button
               onClick={() => setIsByok(!isByok)}
               className="relative w-12 h-6 rounded-full transition-colors cursor-pointer"
               style={{
-                background: isByok ? "#ffffff" : "rgba(255, 255, 255, 0.2)",
+                background: isByok ? "var(--accent)" : "rgba(0, 0, 0, 0.15)",
               }}
             >
               <span
                 className="absolute top-1 w-4 h-4 rounded-full transition-transform"
                 style={{
-                  background: isByok ? "#000000" : "#ffffff",
+                  background: isByok ? "#ffffff" : "var(--foreground)",
                   left: isByok ? "28px" : "4px",
                 }}
               />
             </button>
-            <span style={{ color: isByok ? "#ffffff" : "var(--muted)" }}>
+            <span style={{ color: isByok ? "var(--foreground)" : "var(--muted)" }}>
               BYOK
             </span>
           </div>
@@ -88,8 +91,7 @@ export function Pricing() {
               style={
                 tier.highlighted
                   ? {
-                      border: "1px solid rgba(255, 255, 255, 0.4)",
-                      boxShadow: "0 0 40px rgba(255, 255, 255, 0.08)",
+                      border: "2px solid var(--accent)",
                     }
                   : undefined
               }
@@ -102,8 +104,8 @@ export function Pricing() {
                 <span
                   className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-xs font-semibold"
                   style={{
-                    background: "#ffffff",
-                    color: "#000000",
+                    background: "var(--accent)",
+                    color: "#ffffff",
                   }}
                 >
                   Most Popular
@@ -111,7 +113,7 @@ export function Pricing() {
               )}
               <span
                 className="absolute -top-3 right-4 px-3 py-0.5 rounded-full text-xs font-semibold"
-                style={{ background: "#3b82f6", color: "#ffffff" }}
+                style={{ background: "var(--accent)", color: "#ffffff" }}
               >
                 7-Day Free Trial
               </span>
@@ -130,7 +132,7 @@ export function Pricing() {
                   /mo
                 </span>
                 {tier.trial && (
-                  <p className="text-xs mt-1" style={{ color: "#3b82f6" }}>
+                  <p className="text-xs mt-1" style={{ color: "var(--accent)" }}>
                     Free for 7 days
                   </p>
                 )}
@@ -140,7 +142,7 @@ export function Pricing() {
                   <li key={feature} className="flex items-center gap-2">
                     <span
                       className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ background: "#ffffff" }}
+                      style={{ background: "var(--accent)" }}
                     />
                     {feature}
                   </li>
@@ -148,7 +150,7 @@ export function Pricing() {
               </ul>
 
               {/* Channel logos */}
-              <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="flex items-center gap-2 mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
                 <span className="text-xs" style={{ color: "var(--muted)" }}>Channels:</span>
                 <div className="flex gap-1.5">
                   {/* Telegram */}
@@ -184,7 +186,7 @@ export function Pricing() {
         >
           <div
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+            style={{ background: "rgba(0,0,0,0.03)", border: "1px solid var(--border)" }}
           >
             <span className="text-xs" style={{ color: "var(--muted)" }}>Powered by</span>
             <span className="text-xs font-semibold">OpenClaw</span>

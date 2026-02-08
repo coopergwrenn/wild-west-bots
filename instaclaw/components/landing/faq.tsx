@@ -43,7 +43,10 @@ export function FAQ() {
   return (
     <section className="py-20 px-4">
       <div className="max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-12">
+        <h2
+          className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] text-center mb-12"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
           Frequently Asked Questions
         </h2>
         <div className="space-y-2">

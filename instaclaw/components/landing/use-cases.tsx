@@ -51,7 +51,10 @@ export function UseCases() {
   return (
     <section className="py-24 overflow-hidden">
       <div className="text-center mb-12 px-4">
-        <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+        <h2
+          className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
           Endless Possibilities
         </h2>
         <p style={{ color: "var(--muted)" }}>

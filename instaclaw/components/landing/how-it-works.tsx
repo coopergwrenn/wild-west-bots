@@ -34,7 +34,10 @@ export function HowItWorks() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             How It Works
           </h2>
           <p style={{ color: "var(--muted)" }}>
@@ -55,8 +58,8 @@ export function HowItWorks() {
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold mx-auto mb-4"
                 style={{
-                  background: "#ffffff",
-                  color: "#000000",
+                  background: "var(--accent)",
+                  color: "#ffffff",
                 }}
               >
                 {step.number}

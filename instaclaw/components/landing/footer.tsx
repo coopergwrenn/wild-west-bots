@@ -7,7 +7,7 @@ export function Footer() {
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="text-center sm:text-left">
           <p className="text-lg font-bold tracking-tight">
-            Insta<span className="text-white">Claw</span>.io
+            Insta<span style={{ color: "var(--accent)" }}>Claw</span>.io
           </p>
           <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>
             From the makers of{" "}
@@ -25,13 +25,13 @@ export function Footer() {
           className="flex gap-6 text-sm"
           style={{ color: "var(--muted)" }}
         >
-          <a href="#" className="hover:underline hover:text-white transition-colors">
+          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Privacy
           </a>
-          <a href="#" className="hover:underline hover:text-white transition-colors">
+          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Terms
           </a>
-          <a href="#" className="hover:underline hover:text-white transition-colors">
+          <a href="#" className="hover:underline transition-colors" style={{ color: "var(--muted)" }}>
             Contact
           </a>
         </div>

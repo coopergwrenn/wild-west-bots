@@ -67,7 +67,10 @@ export function Features() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          <h2
+            className="text-4xl sm:text-5xl lg:text-6xl font-normal tracking-[-1px] leading-[1.05] mb-4"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             Everything You Need
           </h2>
           <p style={{ color: "var(--muted)" }}>
@@ -86,7 +89,8 @@ export function Features() {
               transition={{ delay: i * 0.1, duration: 0.6 }}
             >
               <feature.icon
-                className="w-8 h-8 mb-4 text-white"
+                className="w-8 h-8 mb-4"
+                style={{ color: "var(--accent)" }}
               />
               <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
               <p

@@ -9,7 +9,7 @@ import { Footer } from "@/components/landing/footer";
 
 export default function Home() {
   return (
-    <main>
+    <main data-theme="landing">
       <Hero />
       <HowItWorks />
       <Comparison />

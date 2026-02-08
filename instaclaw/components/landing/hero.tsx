@@ -20,10 +20,9 @@ export function Hero() {
         {session ? (
           <Link
             href="/dashboard"
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-all hover:shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
             style={{
-              background: "rgba(255,255,255,0.1)",
-              border: "1px solid rgba(255,255,255,0.2)",
+              background: "var(--accent)",
               color: "#ffffff",
             }}
           >
@@ -32,10 +31,9 @@ export function Hero() {
         ) : (
           <button
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-            className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all hover:shadow-[0_0_20px_rgba(255,255,255,0.15)]"
+            className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all"
             style={{
-              background: "rgba(255,255,255,0.1)",
-              border: "1px solid rgba(255,255,255,0.2)",
+              background: "var(--accent)",
               color: "#ffffff",
             }}
           >
@@ -43,18 +41,6 @@ export function Hero() {
           </button>
         )}
       </motion.div>
-
-      {/* Animated gradient orb — white/gray */}
-      <div
-        className="animate-orb absolute w-[500px] h-[500px] rounded-full blur-[120px] pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 50%, transparent 70%)",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-      />
 
       <motion.div
         className="relative z-10 max-w-3xl w-full text-center space-y-8"
@@ -71,8 +57,8 @@ export function Hero() {
           <span
             className="inline-block px-4 py-1.5 rounded-full text-xs font-medium tracking-wide uppercase"
             style={{
-              border: "1px solid rgba(255, 255, 255, 0.4)",
-              color: "#ffffff",
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
             }}
           >
             Coming Soon
@@ -81,14 +67,15 @@ export function Hero() {
 
         {/* Headline */}
         <motion.h1
-          className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-tight"
+          className="text-5xl sm:text-6xl lg:text-[80px] font-normal tracking-[-1.5px] leading-[1.05]"
+          style={{ fontFamily: "var(--font-serif)" }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.7 }}
         >
           Your Own OpenClaw.
           <br />
-          <span className="text-white">Live in Minutes.</span>
+          Live in Minutes.
         </motion.h1>
 
         {/* Subtext */}
@@ -123,7 +110,8 @@ export function Hero() {
           Already have an invite code?{" "}
           <Link
             href="/signup"
-            className="underline text-white hover:opacity-80 transition-opacity"
+            className="underline hover:opacity-80 transition-opacity"
+            style={{ color: "var(--foreground)" }}
           >
             Sign up here
           </Link>
