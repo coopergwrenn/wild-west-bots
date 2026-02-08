@@ -38,6 +38,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No VM assigned" }, { status: 404 });
     }
 
+    // Rate limiting: max 3 configure attempts per 10 minutes
+    const configureAttempts = vm.configure_attempts ?? 0;
+    const lastConfigureTime = vm.last_health_check
+      ? new Date(vm.last_health_check).getTime()
+      : 0;
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
+
+    if (configureAttempts >= 3 && lastConfigureTime > tenMinutesAgo) {
+      logger.warn("Configure rate limit exceeded", {
+        route: "vm/configure",
+        userId,
+        attempts: configureAttempts,
+      });
+      return NextResponse.json(
+        {
+          error: "Too many configuration attempts. Please wait 10 minutes and try again.",
+          retryAfter: Math.ceil((lastConfigureTime + 10 * 60 * 1000 - Date.now()) / 1000),
+        },
+        { status: 429 }
+      );
+    }
+
     // Get pending user config
     const { data: pending } = await supabase
       .from("instaclaw_pending_users")
