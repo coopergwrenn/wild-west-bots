@@ -31,7 +31,7 @@ function MarqueeRow({
   const repeated = [...items, ...items, ...items, ...items];
 
   return (
-    <div className="overflow-hidden w-full">
+    <div className="overflow-hidden w-full py-2">
       <div className={`flex gap-3 w-max ${animClass}`}>
         {repeated.map((item, i) => (
           <span
