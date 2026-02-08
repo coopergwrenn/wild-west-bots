@@ -1,8 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/middleware'
 import { NextRequest, NextResponse } from 'next/server'
-import { createPublicClient, http, encodeFunctionData } from 'viem'
+import { createPublicClient, createWalletClient, http, encodeFunctionData } from 'viem'
 import { base, baseSepolia } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
 import { getOnChainEscrow, EscrowState } from '@/lib/blockchain/escrow'
 import { uuidToBytes32, ESCROW_V2_ABI, ESCROW_V2_ADDRESS, getEscrowV2, EscrowStateV2 } from '@/lib/blockchain/escrow-v2'
 import { agentReleaseEscrow, signAgentTransaction } from '@/lib/privy/server-wallet'
@@ -67,11 +68,24 @@ export async function POST(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seller = transaction.seller as any
 
-  // Verify buyer ownership
-  if (auth.type === 'user' && buyer.owner_address !== auth.wallet.toLowerCase()) {
-    return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
-  } else if (auth.type === 'agent' && auth.agentId !== buyer.id) {
-    return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
+  // Verify buyer ownership OR allow human buyer via buyer_wallet
+  let buyerWallet: string | null = null
+  if (transaction.buyer_wallet) {
+    // Human buyer
+    if (auth.type === 'user' && transaction.buyer_wallet !== auth.wallet.toLowerCase()) {
+      return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
+    }
+    buyerWallet = transaction.buyer_wallet
+  } else if (buyer) {
+    // Agent buyer
+    if (auth.type === 'user' && buyer.owner_address !== auth.wallet.toLowerCase()) {
+      return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
+    } else if (auth.type === 'agent' && auth.agentId !== buyer.id) {
+      return NextResponse.json({ error: 'Only the buyer can release' }, { status: 403 })
+    }
+    buyerWallet = buyer.wallet_address
+  } else {
+    return NextResponse.json({ error: 'Buyer not found' }, { status: 404 })
   }
 
   let releaseTxHash: string | null = txHash
@@ -98,7 +112,37 @@ export async function POST(
       } catch (err) {
         console.error('Failed to verify V2 on-chain release:', err)
       }
-    } else if (buyer.is_hosted && buyer.privy_wallet_id) {
+    } else if (transaction.oracle_funded) {
+      // Oracle-funded transaction - use oracle wallet to release
+      try {
+        const oraclePrivateKey = process.env.ORACLE_PRIVATE_KEY
+        if (!oraclePrivateKey) {
+          return NextResponse.json({ error: 'Oracle wallet not configured' }, { status: 500 })
+        }
+
+        const oracleAccount = privateKeyToAccount(oraclePrivateKey as `0x${string}`)
+        const walletClient = createWalletClient({
+          account: oracleAccount,
+          chain: CHAIN,
+          transport: http(process.env.ALCHEMY_BASE_URL)
+        })
+
+        const releaseTx = await walletClient.writeContract({
+          address: ESCROW_V2_ADDRESS,
+          abi: ESCROW_V2_ABI,
+          functionName: 'release',
+          args: [escrowIdBytes32]
+        })
+
+        releaseTxHash = releaseTx
+        console.log('[Release] Oracle wallet released escrow:', releaseTxHash)
+
+        await publicClient.waitForTransactionReceipt({ hash: releaseTxHash as `0x${string}` })
+      } catch (oracleError) {
+        console.error('Failed to release V2 on-chain via oracle:', oracleError)
+        return NextResponse.json({ error: 'Failed to release on-chain escrow' }, { status: 500 })
+      }
+    } else if (buyer?.is_hosted && buyer?.privy_wallet_id) {
       // Hosted agent - release via Privy for V2
       try {
         const calldata = encodeFunctionData({
@@ -185,18 +229,22 @@ export async function POST(
     .eq('id', seller.id)
     .catch((err: Error) => console.error('Failed to update seller earnings:', err))
 
-  // Update buyer spending
-  await supabaseAdmin
-    .from('agents')
-    .update({
-      total_spent_wei: (BigInt(buyer.total_spent_wei || '0') + amountWei).toString(),
-    })
-    .eq('id', buyer.id)
-    .catch((err: Error) => console.error('Failed to update buyer spending:', err))
+  // Update buyer spending (only if buyer is an agent)
+  if (buyer?.id) {
+    await supabaseAdmin
+      .from('agents')
+      .update({
+        total_spent_wei: (BigInt(buyer.total_spent_wei || '0') + amountWei).toString(),
+      })
+      .eq('id', buyer.id)
+      .catch((err: Error) => console.error('Failed to update buyer spending:', err))
 
-  // Increment transaction counts for both
+    // Increment buyer transaction count
+    await supabaseAdmin.rpc('increment_transaction_count', { agent_id: buyer.id }).catch(() => {})
+  }
+
+  // Increment seller transaction count
   await supabaseAdmin.rpc('increment_transaction_count', { agent_id: seller.id }).catch(() => {})
-  await supabaseAdmin.rpc('increment_transaction_count', { agent_id: buyer.id }).catch(() => {})
 
   // Record platform fee
   if (feeAmount > BigInt(0)) {
@@ -205,7 +253,7 @@ export async function POST(
       fee_type: 'MARKETPLACE',
       amount_wei: feeAmount.toString(),
       currency: transaction.currency || 'USDC',
-      buyer_agent_id: buyer.id,
+      buyer_agent_id: buyer?.id || null,
       seller_agent_id: seller.id,
       description: `1% marketplace fee on "${transaction.listing_title || 'transaction'}"`,
     }).catch((err: Error) => console.error('Failed to record platform fee:', err))
@@ -235,20 +283,21 @@ export async function POST(
 
   // Create feed event
   await supabaseAdmin.from('feed_events').insert({
-    agent_id: buyer.id,
-    agent_name: buyer.name || 'Buyer',
-    related_agent_id: seller.id,
-    related_agent_name: seller.name || 'Seller',
-    event_type: 'TRANSACTION_RELEASED',
+    type: 'transaction_released',
+    preview: `Payment released for ${transaction.listing_title || 'transaction'}`,
+    agent_ids: buyer?.id ? [buyer.id, seller.id] : [seller.id],
     amount_wei: amountWei.toString(),
-    currency: transaction.currency || 'USDC',
-    description: transaction.listing_title
+    metadata: {
+      transaction_id: id,
+      currency: transaction.currency || 'USDC',
+      listing_title: transaction.listing_title
+    }
   }).catch((err: Error) => console.error('Failed to create feed event:', err))
 
   // Notify seller that payment was received
   await notifyPaymentReceived(
     seller.id,
-    buyer.name || 'Buyer',
+    buyer?.name || 'Buyer',
     transaction.listing_title || 'Transaction',
     sellerAmount.toString(),
     id

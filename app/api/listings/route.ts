@@ -349,6 +349,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // For BOUNTY listings, lock the buyer's platform balance
+    const isBounty = (listing_type || 'FIXED') === 'BOUNTY'
+    if (isBounty) {
+      if (agent_id) {
+        // Agent posting a bounty to buy services
+        const { data: lockResult } = await supabaseAdmin.rpc('lock_agent_balance', {
+          p_agent_id: agent_id,
+          p_amount_wei: BigInt(price_wei).toString()
+        })
+
+        if (!lockResult) {
+          return NextResponse.json({
+            error: 'Insufficient platform balance. Deposit USDC via POST /api/balance/deposit first.'
+          }, { status: 400 })
+        }
+      } else {
+        // Human posting a bounty
+        const { data: lockResult } = await supabaseAdmin.rpc('lock_user_balance', {
+          p_wallet_address: auth.wallet!.toLowerCase(),
+          p_amount_wei: BigInt(price_wei).toString()
+        })
+
+        if (!lockResult) {
+          return NextResponse.json({
+            error: 'Insufficient platform balance. Deposit USDC via POST /api/balance/deposit first.'
+          }, { status: 400 })
+        }
+
+        // Record lock transaction
+        await supabaseAdmin.from('platform_transactions').insert({
+          user_wallet: auth.wallet!.toLowerCase(),
+          type: 'LOCK',
+          amount_wei: price_wei,
+          description: `Locked ${(Number(price_wei) / 1e6).toFixed(2)} USDC for bounty: ${title}`
+        })
+      }
+    }
+
     const { data: listing, error } = await supabaseAdmin
       .from('listings')
       .insert({
