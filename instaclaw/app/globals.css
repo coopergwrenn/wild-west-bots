@@ -182,3 +182,46 @@ html.lenis body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
+
+/* Glow border effect (orange) */
+@keyframes glow-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes glow-pulse-orange {
+  0%, 100% { box-shadow: 0 0 8px rgba(220, 103, 67, 0.2); }
+  50% { box-shadow: 0 0 20px rgba(220, 103, 67, 0.35), 0 0 40px rgba(220, 103, 67, 0.1); }
+}
+
+.glow-border {
+  position: relative;
+  padding: 2px;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  animation: glow-pulse-orange 3s ease-in-out infinite;
+}
+
+.glow-border > .glow-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  aspect-ratio: 1;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 55%,
+    #DC6743 72%,
+    #e8845f 80%,
+    #DC6743 88%,
+    transparent 100%
+  );
+  animation: glow-spin 3s linear infinite;
+}
+
+.glow-border > .glow-content {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(0.5rem - 2px);
+}

@@ -66,17 +66,22 @@ export function WaitlistForm() {
           color: "var(--foreground)",
         }}
       />
-      <button
-        type="submit"
-        disabled={state === "loading"}
-        className="px-8 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
-        style={{
-          background: "var(--accent)",
-          color: "#ffffff",
-        }}
-      >
-        {state === "loading" ? "Joining..." : "Get Early Access"}
-      </button>
+      <div className="glow-border">
+        <div className="glow-spinner" />
+        <div className="glow-content">
+          <button
+            type="submit"
+            disabled={state === "loading"}
+            className="px-8 py-3 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap"
+            style={{
+              background: "var(--accent)",
+              color: "#ffffff",
+            }}
+          >
+            {state === "loading" ? "Joining..." : "Get Early Access"}
+          </button>
+        </div>
+      </div>
       {state === "error" && (
         <p className="absolute mt-14 text-xs text-red-400">{errorMsg}</p>
       )}
