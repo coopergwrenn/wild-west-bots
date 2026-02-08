@@ -29,7 +29,7 @@ export default function Home() {
         <NotificationBar />
         <Hero />
         <hr className="section-divider" />
-        <ScrollReveal text="We believe everyone deserves a personal AI that actually does things. Not just chat. Not just suggest. Actually take action on your behalf. Literally anything." />
+        <ScrollReveal text="We believe everyone deserves a *personal* *AI* that ~actually~ ~does~ ~things.~ Not just chat. Not just suggest. Actually _take_ _action_ on your behalf. Literally anything." />
         <hr className="section-divider" />
         <UseCases />
         <hr className="section-divider" />

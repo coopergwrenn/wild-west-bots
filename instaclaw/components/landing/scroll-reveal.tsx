@@ -2,10 +2,116 @@
 
 import { useEffect, useRef, useState } from "react";
 
+// Decoration types: *highlight*, ~circle~, _underline_
+function parseDecorations(text: string) {
+  const words = text.split(" ");
+  return words.map((word) => {
+    let cleanWord = word;
+    let decoration: "highlight" | "circle" | "underline" | null = null;
+
+    if (word.startsWith("*") && word.endsWith("*")) {
+      decoration = "highlight";
+      cleanWord = word.slice(1, -1);
+    } else if (word.startsWith("~") && word.endsWith("~")) {
+      decoration = "circle";
+      cleanWord = word.slice(1, -1);
+    } else if (word.startsWith("_") && word.endsWith("_")) {
+      decoration = "underline";
+      cleanWord = word.slice(1, -1);
+    }
+
+    return { word: cleanWord, decoration };
+  });
+}
+
+function Highlight({ children, revealed }: { children: string; revealed: boolean }) {
+  return (
+    <span className="relative inline-block">
+      <span
+        className="absolute inset-0 -mx-1 -my-0.5 rounded transition-all duration-500"
+        style={{
+          background: "#fef08a",
+          opacity: revealed ? 1 : 0,
+          transform: revealed ? "scale(1)" : "scale(0.95)",
+        }}
+      />
+      <span className="relative">{children}</span>
+    </span>
+  );
+}
+
+function Circle({ children, revealed }: { children: string; revealed: boolean }) {
+  return (
+    <span className="relative inline-block">
+      <svg
+        className="absolute pointer-events-none"
+        style={{
+          left: "-8px",
+          top: "-6px",
+          width: "calc(100% + 16px)",
+          height: "calc(100% + 12px)",
+        }}
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <ellipse
+          cx="50%"
+          cy="50%"
+          rx="48%"
+          ry="48%"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeDasharray="4 2"
+          style={{
+            strokeDashoffset: revealed ? 0 : 100,
+            transition: "stroke-dashoffset 0.8s ease-out",
+            opacity: revealed ? 0.6 : 0,
+          }}
+        />
+      </svg>
+      <span className="relative">{children}</span>
+    </span>
+  );
+}
+
+function Underline({ children, revealed }: { children: string; revealed: boolean }) {
+  return (
+    <span className="relative inline-block">
+      <svg
+        className="absolute pointer-events-none"
+        style={{
+          left: "-2px",
+          bottom: "-2px",
+          width: "calc(100% + 4px)",
+          height: "8px",
+        }}
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M0,4 Q25,2 50,4 T100,4"
+          vectorEffect="non-scaling-stroke"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          style={{
+            strokeDasharray: "100",
+            strokeDashoffset: revealed ? 0 : 100,
+            transition: "stroke-dashoffset 0.8s ease-out",
+            opacity: revealed ? 0.8 : 0,
+          }}
+        />
+      </svg>
+      <span className="relative">{children}</span>
+    </span>
+  );
+}
+
 export function ScrollReveal({ text }: { text: string }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [revealedCount, setRevealedCount] = useState(0);
-  const words = text.split(" ");
+  const parsedWords = parseDecorations(text);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -17,13 +123,11 @@ export function ScrollReveal({ text }: { text: string }) {
       if (!active || !section) return;
       const rect = section.getBoundingClientRect();
       const viewportH = window.innerHeight;
-      // progress: 0 when section top hits viewport bottom, 1 when section bottom hits viewport top
       const total = rect.height + viewportH;
       const scrolled = viewportH - rect.top;
       const progress = Math.min(Math.max(scrolled / total, 0), 1);
-      // map progress to word count — reveal starts at 15% scroll, done by 85%
       const mapped = Math.min(Math.max((progress - 0.15) / 0.7, 0), 1);
-      setRevealedCount(Math.round(mapped * words.length));
+      setRevealedCount(Math.round(mapped * parsedWords.length));
     }
 
     const observer = new IntersectionObserver(
@@ -41,7 +145,7 @@ export function ScrollReveal({ text }: { text: string }) {
       observer.disconnect();
       window.removeEventListener("scroll", onScroll);
     };
-  }, [words.length]);
+  }, [parsedWords.length]);
 
   return (
     <section ref={sectionRef} className="py-16 sm:py-[12vh] px-4">
@@ -50,15 +154,30 @@ export function ScrollReveal({ text }: { text: string }) {
           className="text-3xl sm:text-4xl lg:text-5xl font-normal tracking-[-0.5px] leading-[1.25]"
           style={{ fontFamily: "var(--font-serif)" }}
         >
-          {words.map((word, i) => (
-            <span key={i} className="scroll-word-wrapper">
+          {parsedWords.map(({ word, decoration }, i) => {
+            const revealed = i < revealedCount;
+            const wordSpan = (
               <span
-                className={`scroll-word${i < revealedCount ? " revealed" : ""}`}
+                className={`scroll-word${revealed ? " revealed" : ""}`}
               >
                 {word}
-              </span>{" "}
-            </span>
-          ))}
+              </span>
+            );
+
+            return (
+              <span key={i} className="scroll-word-wrapper">
+                {decoration === "highlight" ? (
+                  <Highlight revealed={revealed}>{word}</Highlight>
+                ) : decoration === "circle" ? (
+                  <Circle revealed={revealed}>{word}</Circle>
+                ) : decoration === "underline" ? (
+                  <Underline revealed={revealed}>{word}</Underline>
+                ) : (
+                  wordSpan
+                )}{" "}
+              </span>
+            );
+          })}
         </p>
       </div>
     </section>
