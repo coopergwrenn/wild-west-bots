@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Hash,
   Phone,
+  CreditCard,
 } from "lucide-react";
 import { WorldIDSection } from "@/components/dashboard/world-id-section";
 
@@ -264,6 +265,18 @@ export default function SettingsPage() {
     );
   }
 
+  async function openBillingPortal() {
+    try {
+      const res = await fetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch {
+      setError("Failed to open billing portal");
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -272,6 +285,37 @@ export default function SettingsPage() {
           Configure your OpenClaw instance.
         </p>
       </div>
+
+      {/* Current Plan Section */}
+      {vmStatus?.billing && (
+        <div className="glass rounded-xl p-6 space-y-4">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCard className="w-5 h-5" style={{ color: "var(--muted)" }} />
+                <h2 className="text-lg font-semibold">Current Plan</h2>
+              </div>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                {vmStatus.billing.tierName} • {vmStatus.billing.apiMode === "byok" ? "BYOK" : "All-Inclusive"}
+              </p>
+            </div>
+            <button
+              onClick={openBillingPortal}
+              className="px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] flex items-center gap-2"
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <ExternalLink className="w-4 h-4" />
+              Manage Plan
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>
+            Change your plan, update payment methods, or view invoices in the Stripe billing portal.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--error)" }}>
