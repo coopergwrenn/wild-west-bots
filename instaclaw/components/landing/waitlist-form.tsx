@@ -59,14 +59,9 @@ export function WaitlistForm() {
           <div
             className="glow-content"
             style={{
-              background: "linear-gradient(-75deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05))",
-              backdropFilter: "blur(2px)",
-              WebkitBackdropFilter: "blur(2px)",
-              boxShadow: `
-                rgba(0, 0, 0, 0.05) 0px 2px 2px 0px inset,
-                rgba(255, 255, 255, 0.5) 0px -2px 2px 0px inset,
-                rgba(255, 255, 255, 0.2) 0px 0px 1.6px 4px inset
-              `,
+              background: "rgba(255, 255, 255, 0.08)",
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
             }}
           >
             <form onSubmit={handleSubmit} className="flex">
