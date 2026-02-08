@@ -1,6 +1,5 @@
 import { getSupabase } from "./supabase";
 import { generateGatewayToken } from "./security";
-import { createDNSRecord } from "./hetzner";
 import { logger } from "./logger";
 
 interface VMRecord {
@@ -215,18 +214,55 @@ export async function configureOpenClaw(
       throw new Error(`VM configuration failed: ${result.stderr || result.stdout}`);
     }
 
-    // Gateway accessible directly on port 18789
-    const gatewayUrl = `http://${vm.ip_address}:${GATEWAY_PORT}`;
-    const controlUiUrl = `http://${vm.ip_address}:${GATEWAY_PORT}`;
+    const supabase = getSupabase();
+    const hostname = `${vm.id}.vm.instaclaw.io`;
+
+    // ── Setup TLS with GoDaddy DNS + Caddy + Let's Encrypt ──
+    // This is NOT optional. If it fails, we fallback to HTTP but log an error.
+    let finalGatewayUrl = `http://${vm.ip_address}:${GATEWAY_PORT}`;
+    let finalControlUrl = `http://${vm.ip_address}:${GATEWAY_PORT}`;
+
+    try {
+      // Import GoDaddy DNS functions
+      const { createVMDNSRecord } = await import("./godaddy");
+
+      // Step 1: Create DNS A record
+      const dnsOk = await createVMDNSRecord(vm.id, vm.ip_address);
+      if (!dnsOk) {
+        throw new Error("GoDaddy DNS record creation failed - check GODADDY_API_KEY and GODADDY_API_SECRET");
+      }
+
+      // Step 2: Install Caddy and configure TLS
+      const tlsOk = await setupTLS(vm, hostname);
+      if (!tlsOk) {
+        throw new Error("Caddy TLS setup failed");
+      }
+
+      // Success! Use HTTPS
+      finalGatewayUrl = `https://${hostname}`;
+      finalControlUrl = `https://${hostname}`;
+
+      logger.info("TLS setup successful", {
+        route: "lib/ssh",
+        vmId: vm.id,
+        hostname,
+      });
+    } catch (tlsErr) {
+      logger.error("TLS setup failed - VM will use HTTP (INSECURE)", {
+        error: String(tlsErr),
+        route: "lib/ssh",
+        vmId: vm.id,
+      });
+      // Fallback to HTTP - insecure but functional
+    }
 
     // Update VM record in Supabase
-    const supabase = getSupabase();
     const { error: vmError } = await supabase
       .from("instaclaw_vms")
       .update({
-        gateway_url: gatewayUrl,
+        gateway_url: finalGatewayUrl,
         gateway_token: gatewayToken,
-        control_ui_url: controlUiUrl,
+        control_ui_url: finalControlUrl,
         default_model: config.model || "claude-sonnet-4-5-20250929",
       })
       .eq("id", vm.id);
@@ -236,31 +272,7 @@ export async function configureOpenClaw(
       throw new Error("Failed to update VM record in database");
     }
 
-    // Auto-setup TLS if Cloudflare DNS is configured (non-blocking)
-    if (process.env.CLOUDFLARE_ZONE_ID && process.env.CLOUDFLARE_API_TOKEN) {
-      try {
-        const hostname = `${vm.id}.vm.instaclaw.io`;
-        const recordId = await createDNSRecord(vm.id, vm.ip_address);
-        if (recordId) {
-          const tlsOk = await setupTLS(vm, hostname);
-          if (tlsOk) {
-            const httpsUrl = `https://${hostname}`;
-            await supabase
-              .from("instaclaw_vms")
-              .update({
-                gateway_url: httpsUrl,
-                control_ui_url: httpsUrl,
-              })
-              .eq("id", vm.id);
-            return { gatewayUrl: httpsUrl, gatewayToken, controlUiUrl: httpsUrl };
-          }
-        }
-      } catch (tlsErr) {
-        logger.warn("TLS setup skipped (non-fatal)", { error: String(tlsErr), route: "lib/ssh", vmId: vm.id });
-      }
-    }
-
-    return { gatewayUrl, gatewayToken, controlUiUrl };
+    return { gatewayUrl: finalGatewayUrl, gatewayToken, controlUiUrl: finalControlUrl };
   } finally {
     ssh.dispose();
   }
