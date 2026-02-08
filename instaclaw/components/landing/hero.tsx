@@ -20,10 +20,10 @@ export function Hero() {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.2, duration: 0.5, ease: SNAPPY }}
       >
-        <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="InstaClaw" width={44} height={44} unoptimized style={{ imageRendering: "pixelated" }} />
+        <Link href="/" className="flex items-center gap-1">
+          <Image src="/logo.png" alt="Instaclaw" width={44} height={44} unoptimized style={{ imageRendering: "pixelated" }} />
           <span className="text-xl tracking-[-0.5px]" style={{ fontFamily: "var(--font-serif)" }}>
-            Insta<span style={{ color: "var(--accent)" }}>Claw</span>
+            Instaclaw
           </span>
         </Link>
       </motion.div>
