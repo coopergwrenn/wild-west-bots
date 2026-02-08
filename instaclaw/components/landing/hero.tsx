@@ -117,13 +117,34 @@ export function Hero() {
           </span>
           . It handles your tasks,{" "}
           <span className="relative inline-block">
-            <motion.span
-              className="absolute inset-0 -mx-1 -my-0.5 rounded"
-              style={{ background: "#fef08a", transformOrigin: "left center" }}
-              initial={{ scaleX: 0, opacity: 0 }}
-              animate={{ scaleX: 1, opacity: 0.9 }}
-              transition={{ delay: 1.8, duration: 0.5, ease: "easeOut" }}
-            />
+            <motion.svg
+              className="absolute pointer-events-none"
+              style={{
+                left: "-12px",
+                top: "-6px",
+                width: "calc(100% + 24px)",
+                height: "calc(100% + 12px)",
+              }}
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 200 100"
+              preserveAspectRatio="none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.7 }}
+              transition={{ delay: 1.8, duration: 0.1 }}
+            >
+              <motion.path
+                d="M8,50 Q10,16 55,13 Q120,10 170,20 Q192,35 190,55 Q188,78 150,86 Q100,92 40,84 Q6,74 8,50"
+                fill="none"
+                stroke="var(--accent)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ delay: 1.8, duration: 0.7, ease: "easeOut" }}
+              />
+            </motion.svg>
             <span className="relative">remembers everything</span>
           </span>
           , and gets smarter every day. Set it up in
