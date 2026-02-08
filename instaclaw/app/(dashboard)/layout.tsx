@@ -40,9 +40,9 @@ export default function DashboardLayout({
         style={{ borderColor: "var(--border)", background: "var(--background)" }}
       >
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 text-lg font-bold tracking-tight transition-opacity hover:opacity-70" style={{ fontFamily: "var(--font-serif)" }}>
-            <Image src="/logo.png" alt="InstaClaw" width={24} height={24} unoptimized style={{ imageRendering: "pixelated" }} />
-            Insta<span style={{ color: "var(--accent)" }}>Claw</span>
+          <Link href="/dashboard" className="flex items-center gap-1 text-xl tracking-[-0.5px] transition-opacity hover:opacity-70" style={{ fontFamily: "var(--font-serif)" }}>
+            <Image src="/logo.png" alt="InstaClaw" width={44} height={44} unoptimized style={{ imageRendering: "pixelated" }} />
+            Instaclaw
           </Link>
 
           <div className="flex items-center gap-1">
