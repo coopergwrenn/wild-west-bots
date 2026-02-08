@@ -36,52 +36,60 @@ export default function ConnectPage() {
   const [slackSigningSecret, setSlackSigningSecret] = useState("");
   const [whatsappToken, setWhatsappToken] = useState("");
   const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState<string>("telegram");
   const [channels, setChannels] = useState<string[]>(["telegram"]);
   const [apiMode, setApiMode] = useState<"all_inclusive" | "byok">(
     "all_inclusive"
   );
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("claude-sonnet-4-5-20250929");
+  const [models, setModels] = useState<string[]>(["claude-sonnet-4-5-20250929"]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
   const [botUsername, setBotUsername] = useState("");
   const [faqOpen, setFaqOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
-  function toggleChannel(channel: string) {
-    setChannels((prev) =>
-      prev.includes(channel)
-        ? prev.filter((c) => c !== channel)
-        : [...prev, channel]
+  function selectChannel(channel: string) {
+    setSelectedChannel(channel);
+    setChannels([channel]);
+  }
+
+  function toggleModel(modelId: string) {
+    setModels((prev) =>
+      prev.includes(modelId)
+        ? prev.filter((m) => m !== modelId)
+        : [...prev, modelId]
     );
   }
 
   async function handleContinue() {
     setError("");
 
-    if (channels.includes("telegram") && !verified) {
+    if (selectedChannel === "telegram" && !verified) {
       setError("Please verify your Telegram bot token first.");
       return;
     }
 
-    if (channels.includes("discord") && !discordToken.trim()) {
+    if (selectedChannel === "discord" && !discordToken.trim()) {
       setError("Please enter your Discord bot token.");
       return;
     }
 
-    if (channels.includes("slack") && !slackToken.trim()) {
+    if (selectedChannel === "slack" && !slackToken.trim()) {
       setError("Please enter your Slack bot token.");
       return;
     }
 
-    if (channels.includes("whatsapp") && !whatsappToken.trim()) {
+    if (selectedChannel === "whatsapp" && !whatsappToken.trim()) {
       setError("Please enter your WhatsApp access token.");
       return;
     }
 
-    if (channels.length === 0) {
-      setError("Please select at least one channel.");
+    if (selectedChannel === "imessage") {
+      setError("iMessage integration coming soon!");
       return;
     }
 
@@ -90,19 +98,24 @@ export default function ConnectPage() {
       return;
     }
 
+    if (apiMode === "all_inclusive" && models.length === 0) {
+      setError("Please select at least one model.");
+      return;
+    }
+
     sessionStorage.setItem(
       "instaclaw_onboarding",
       JSON.stringify({
-        botToken: channels.includes("telegram") ? botToken.trim() : undefined,
-        discordToken: channels.includes("discord") ? discordToken.trim() : undefined,
-        slackToken: channels.includes("slack") ? slackToken.trim() : undefined,
-        slackSigningSecret: channels.includes("slack") ? slackSigningSecret.trim() : undefined,
-        whatsappToken: channels.includes("whatsapp") ? whatsappToken.trim() : undefined,
-        whatsappPhoneNumberId: channels.includes("whatsapp") ? whatsappPhoneNumberId.trim() : undefined,
-        channels,
+        botToken: selectedChannel === "telegram" ? botToken.trim() : undefined,
+        discordToken: selectedChannel === "discord" ? discordToken.trim() : undefined,
+        slackToken: selectedChannel === "slack" ? slackToken.trim() : undefined,
+        slackSigningSecret: selectedChannel === "slack" ? slackSigningSecret.trim() : undefined,
+        whatsappToken: selectedChannel === "whatsapp" ? whatsappToken.trim() : undefined,
+        whatsappPhoneNumberId: selectedChannel === "whatsapp" ? whatsappPhoneNumberId.trim() : undefined,
+        channels: [selectedChannel],
         apiMode,
         apiKey: apiMode === "byok" ? apiKey.trim() : undefined,
-        model: apiMode === "all_inclusive" ? model : undefined,
+        models: apiMode === "all_inclusive" ? models : undefined,
       })
     );
 
@@ -152,6 +165,49 @@ export default function ConnectPage() {
 
   return (
     <div className="min-h-screen" style={{ background: "#f8f7f4" }}>
+      {/* Step Indicator */}
+      <div
+        className="sticky top-0 z-10 py-4"
+        style={{ background: "#ffffff", borderBottom: "1px solid rgba(0, 0, 0, 0.1)" }}
+      >
+        <div className="max-w-2xl mx-auto px-6">
+          <div className="flex items-center justify-center gap-2">
+            {[
+              { num: 1, label: "Connect" },
+              { num: 2, label: "Plan" },
+              { num: 3, label: "Deploy" },
+            ].map((step, i) => (
+              <div key={step.num} className="flex items-center">
+                <div className="flex flex-col items-center">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all"
+                    style={{
+                      background: step.num === 1 ? "#DC6743" : "#ffffff",
+                      color: step.num === 1 ? "#ffffff" : "#999999",
+                      border: step.num === 1 ? "none" : "1px solid rgba(0, 0, 0, 0.1)",
+                    }}
+                  >
+                    {step.num}
+                  </div>
+                  <span
+                    className="text-xs mt-1.5 font-medium"
+                    style={{ color: step.num === 1 ? "#333334" : "#999999" }}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+                {i < 2 && (
+                  <div
+                    className="w-16 h-px mx-3 mb-5"
+                    style={{ background: "rgba(0, 0, 0, 0.1)" }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-2xl mx-auto px-6 py-16">
         {/* Header */}
         <div className="text-center mb-12">
@@ -178,80 +234,132 @@ export default function ConnectPage() {
           >
             Channels
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-3">
             <button
               type="button"
-              onClick={() => toggleChannel("telegram")}
-              className="bg-white rounded-lg p-4 text-left transition-all"
+              onClick={() => selectChannel("telegram")}
+              className="bg-white rounded-lg p-4 text-left transition-all flex items-start gap-3"
               style={{
-                border: channels.includes("telegram")
+                border: selectedChannel === "telegram"
                   ? "2px solid #DC6743"
                   : "1px solid rgba(0, 0, 0, 0.1)",
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                Telegram
-              </p>
-              <p className="text-xs mt-1" style={{ color: "#666" }}>
-                Bot via @BotFather
-              </p>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM16.64 8.8C16.49 10.38 15.84 14.22 15.51 15.98C15.37 16.74 15.09 16.99 14.83 17.02C14.25 17.07 13.81 16.64 13.25 16.27C12.37 15.69 11.87 15.33 11.02 14.77C10.03 14.12 10.67 13.76 11.24 13.18C11.39 13.03 13.95 10.7 14 10.49C14.0069 10.4582 14.006 10.4252 13.9973 10.3938C13.9886 10.3624 13.9724 10.3337 13.95 10.31C13.89 10.26 13.81 10.28 13.74 10.29C13.65 10.31 12.25 11.24 9.52 13.08C9.12 13.35 8.76 13.49 8.44 13.48C8.08 13.47 7.4 13.28 6.89 13.11C6.26 12.91 5.77 12.8 5.81 12.45C5.83 12.27 6.08 12.09 6.55 11.9C9.47 10.63 11.41 9.79 12.38 9.39C15.16 8.23 15.73 8.03 16.11 8.03C16.19 8.03 16.38 8.05 16.5 8.15C16.6 8.23 16.63 8.34 16.64 8.42C16.63 8.48 16.65 8.66 16.64 8.8Z" fill="#229ED9"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                  Telegram
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#666" }}>
+                  Bot via @BotFather
+                </p>
+              </div>
             </button>
             <button
               type="button"
-              onClick={() => toggleChannel("discord")}
-              className="bg-white rounded-lg p-4 text-left transition-all"
+              onClick={() => selectChannel("discord")}
+              className="bg-white rounded-lg p-4 text-left transition-all flex items-start gap-3"
               style={{
-                border: channels.includes("discord")
+                border: selectedChannel === "discord"
                   ? "2px solid #DC6743"
                   : "1px solid rgba(0, 0, 0, 0.1)",
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                Discord
-              </p>
-              <p className="text-xs mt-1" style={{ color: "#666" }}>
-                Discord bot token
-              </p>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4C14.83 4.31 14.62 4.73 14.48 5.06C12.92 4.83 11.35 4.83 9.82 5.06C9.68 4.73 9.46 4.31 9.29 4C7.78 4.26 6.35 4.71 5.02 5.33C2.44 9.14 1.73 12.86 2.08 16.53C3.87 17.85 5.61 18.65 7.32 19.18C7.72 18.64 8.08 18.07 8.39 17.47C7.82 17.25 7.27 16.98 6.75 16.67C6.89 16.56 7.02 16.45 7.16 16.34C10.18 17.73 13.45 17.73 16.43 16.34C16.57 16.45 16.7 16.56 16.84 16.67C16.32 16.98 15.77 17.25 15.2 17.47C15.51 18.07 15.87 18.64 16.27 19.18C17.98 18.65 19.72 17.85 21.51 16.53C21.92 12.27 20.85 8.59 19.27 5.33ZM8.68 14.18C7.72 14.18 6.93 13.29 6.93 12.19C6.93 11.09 7.7 10.2 8.68 10.2C9.66 10.2 10.45 11.09 10.43 12.19C10.43 13.29 9.66 14.18 8.68 14.18ZM14.91 14.18C13.95 14.18 13.16 13.29 13.16 12.19C13.16 11.09 13.93 10.2 14.91 10.2C15.89 10.2 16.68 11.09 16.66 12.19C16.66 13.29 15.89 14.18 14.91 14.18Z" fill="#5865F2"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                  Discord
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#666" }}>
+                  Discord bot token
+                </p>
+              </div>
             </button>
             <button
               type="button"
-              onClick={() => toggleChannel("slack")}
-              className="bg-white rounded-lg p-4 text-left transition-all"
+              onClick={() => selectChannel("slack")}
+              className="bg-white rounded-lg p-4 text-left transition-all flex items-start gap-3"
               style={{
-                border: channels.includes("slack")
+                border: selectedChannel === "slack"
                   ? "2px solid #DC6743"
                   : "1px solid rgba(0, 0, 0, 0.1)",
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                Slack
-              </p>
-              <p className="text-xs mt-1" style={{ color: "#666" }}>
-                Slack workspace bot
-              </p>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M6 15C6 16.1 5.1 17 4 17C2.9 17 2 16.1 2 15C2 13.9 2.9 13 4 13H6V15ZM7 15C7 13.9 7.9 13 9 13C10.1 13 11 13.9 11 15V20C11 21.1 10.1 22 9 22C7.9 22 7 21.1 7 20V15Z" fill="#E01E5A"/>
+                <path d="M9 6C7.9 6 7 5.1 7 4C7 2.9 7.9 2 9 2C10.1 2 11 2.9 11 4V6H9ZM9 7C10.1 7 11 7.9 11 9C11 10.1 10.1 11 9 11H4C2.9 11 2 10.1 2 9C2 7.9 2.9 7 4 7H9Z" fill="#36C5F0"/>
+                <path d="M18 9C18 7.9 18.9 7 20 7C21.1 7 22 7.9 22 9C22 10.1 21.1 11 20 11H18V9ZM17 9C17 10.1 16.1 11 15 11C13.9 11 13 10.1 13 9V4C13 2.9 13.9 2 15 2C16.1 2 17 2.9 17 4V9Z" fill="#2EB67D"/>
+                <path d="M15 18C16.1 18 17 18.9 17 20C17 21.1 16.1 22 15 22C13.9 22 13 21.1 13 20V18H15ZM15 17C13.9 17 13 16.1 13 15C13 13.9 13.9 13 15 13H20C21.1 13 22 13.9 22 15C22 16.1 21.1 17 20 17H15Z" fill="#ECB22E"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                  Slack
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#666" }}>
+                  Slack workspace bot
+                </p>
+              </div>
             </button>
             <button
               type="button"
-              onClick={() => toggleChannel("whatsapp")}
-              className="bg-white rounded-lg p-4 text-left transition-all"
+              onClick={() => selectChannel("whatsapp")}
+              className="bg-white rounded-lg p-4 text-left transition-all flex items-start gap-3"
               style={{
-                border: channels.includes("whatsapp")
+                border: selectedChannel === "whatsapp"
                   ? "2px solid #DC6743"
                   : "1px solid rgba(0, 0, 0, 0.1)",
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                WhatsApp
-              </p>
-              <p className="text-xs mt-1" style={{ color: "#666" }}>
-                Meta Business API
-              </p>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" fill="#25D366"/>
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                  WhatsApp
+                </p>
+                <p className="text-xs mt-1" style={{ color: "#666" }}>
+                  Meta Business API
+                </p>
+              </div>
             </button>
           </div>
+
+          {/* iMessage Button */}
+          <button
+            type="button"
+            onClick={() => selectChannel("imessage")}
+            className="w-full bg-white rounded-full py-4 px-6 text-left transition-all flex items-center gap-3"
+            style={{
+              border: selectedChannel === "imessage"
+                ? "2px solid #DC6743"
+                : "1px solid rgba(0, 0, 0, 0.1)",
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C6.48 2 2 6.03 2 11C2 13.39 3.03 15.55 4.71 17.13C4.84 17.25 4.92 17.42 4.93 17.6L5 20C5 20.55 5.45 21 6 21C6.17 21 6.33 20.95 6.47 20.87L9.22 19.24C9.42 19.12 9.66 19.09 9.88 19.15C10.58 19.35 11.29 19.46 12 19.46C17.52 19.46 22 15.43 22 10.46C22 5.49 17.52 1.46 12 1.46M12 3.46C16.41 3.46 20 6.56 20 10.46C20 14.36 16.41 17.46 12 17.46C11.41 17.46 10.82 17.39 10.25 17.26C9.68 17.13 9.09 17.19 8.56 17.44L7.09 18.28L7.05 17.03C7.03 16.46 6.78 15.92 6.36 15.54C4.95 14.26 4 12.7 4 11C4 7.1 7.59 4 12 4Z" fill="#007AFF"/>
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                iMessage
+              </p>
+              <p className="text-xs mt-1" style={{ color: "#666" }}>
+                Apple Messages integration
+              </p>
+            </div>
+          </button>
+
+          {/* Coming Soon Message */}
+          <p className="text-xs mt-3 text-center" style={{ color: "#999" }}>
+            Multi-channel support coming soon
+          </p>
         </div>
 
         {/* Telegram Bot Token */}
-        {channels.includes("telegram") && (
+        {selectedChannel === "telegram" && (
           <div className="mb-10">
             <label
               className="block text-sm font-medium mb-4"
@@ -260,51 +368,70 @@ export default function ConnectPage() {
               Telegram Bot Token
             </label>
 
-            {/* Step-by-step instructions */}
+            {/* Step-by-step instructions - Collapsible */}
             <div
-              className="bg-white rounded-lg p-6 mb-4 text-sm"
+              className="bg-white rounded-lg mb-4 text-sm overflow-hidden"
               style={{
                 border: "1px solid rgba(0, 0, 0, 0.1)",
-                color: "#666"
               }}
             >
-              <p
-                className="font-semibold mb-3"
+              <button
+                type="button"
+                onClick={() => setInstructionsOpen(!instructionsOpen)}
+                className="w-full px-6 py-4 text-left flex items-center justify-between transition-colors"
                 style={{ color: "#333334" }}
               >
-                How to get your bot token:
-              </p>
-              <div className="space-y-2">
-                <p>1. Open Telegram on your phone or desktop</p>
-                <p>
-                  2. Search for{" "}
-                  <span className="font-semibold" style={{ color: "#333334" }}>
-                    @BotFather
-                  </span>{" "}
-                  (blue checkmark)
-                </p>
-                <p>
-                  3. Tap <strong>Start</strong>, then send:{" "}
-                  <code
-                    className="px-2 py-1 rounded text-xs"
-                    style={{ background: "#f8f7f4", color: "#333334" }}
-                  >
-                    /newbot
-                  </code>
-                </p>
-                <p>4. Pick a display name (anything — e.g. "My AI Agent")</p>
-                <p>
-                  5. Pick a username ending in "bot" (e.g.{" "}
-                  <span className="font-mono">myagent_bot</span>)
-                </p>
-                <p>
-                  6. BotFather sends you a token like:{" "}
-                  <span className="font-mono">123456789:ABCdef...</span>
-                </p>
-                <p className="font-semibold" style={{ color: "#333334" }}>
-                  7. Copy that ENTIRE line and paste it below
-                </p>
-              </div>
+                <span className="font-semibold">How to get your bot token:</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: instructionsOpen ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+              {instructionsOpen && (
+                <div className="px-6 pb-6 space-y-2" style={{ color: "#666" }}>
+                  <p>1. Open Telegram on your phone or desktop</p>
+                  <p>
+                    2. Search for{" "}
+                    <span className="font-semibold" style={{ color: "#333334" }}>
+                      @BotFather
+                    </span>{" "}
+                    (blue checkmark)
+                  </p>
+                  <p>
+                    3. Tap <strong>Start</strong>, then send:{" "}
+                    <code
+                      className="px-2 py-1 rounded text-xs"
+                      style={{ background: "#f8f7f4", color: "#333334" }}
+                    >
+                      /newbot
+                    </code>
+                  </p>
+                  <p>4. Pick a display name (anything — e.g. "My AI Agent")</p>
+                  <p>
+                    5. Pick a username ending in "bot" (e.g.{" "}
+                    <span className="font-mono">myagent_bot</span>)
+                  </p>
+                  <p>
+                    6. BotFather sends you a token like:{" "}
+                    <span className="font-mono">123456789:ABCdef...</span>
+                  </p>
+                  <p className="font-semibold" style={{ color: "#333334" }}>
+                    7. Copy that ENTIRE line and paste it below
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* FAQ accordion */}
@@ -477,7 +604,7 @@ export default function ConnectPage() {
         )}
 
         {/* Discord Bot Token */}
-        {channels.includes("discord") && (
+        {selectedChannel === "discord" && (
           <div className="mb-10">
             <label
               className="block text-sm font-medium mb-4"
@@ -527,7 +654,7 @@ export default function ConnectPage() {
         )}
 
         {/* Slack Bot Token */}
-        {channels.includes("slack") && (
+        {selectedChannel === "slack" && (
           <div className="mb-10">
             <label
               className="block text-sm font-medium mb-4"
@@ -588,7 +715,7 @@ export default function ConnectPage() {
         )}
 
         {/* WhatsApp Access Token */}
-        {channels.includes("whatsapp") && (
+        {selectedChannel === "whatsapp" && (
           <div className="mb-10">
             <label
               className="block text-sm font-medium mb-4"
@@ -673,8 +800,11 @@ export default function ConnectPage() {
                     : "1px solid rgba(0, 0, 0, 0.1)",
               }}
             >
-              <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+              <p className="text-sm font-semibold flex items-center gap-2" style={{ color: "#333334" }}>
                 All-Inclusive
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC6743" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               </p>
               <p className="text-xs mt-1" style={{ color: "#666" }}>
                 We handle everything. Recommended.
@@ -734,52 +864,138 @@ export default function ConnectPage() {
               className="block text-sm font-medium mb-4"
               style={{ color: "#333334" }}
             >
-              Default Model
+              Available Models
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                {
-                  id: "claude-haiku-4-5-20251001",
-                  label: "Claude Haiku 4.5",
-                  desc: "Fast & affordable",
-                },
-                {
-                  id: "claude-sonnet-4-5-20250929",
-                  label: "Claude Sonnet 4.5",
-                  desc: "Recommended — best balance",
-                },
-                {
-                  id: "claude-opus-4-5-20250820",
-                  label: "Claude Opus 4.5",
-                  desc: "Premium intelligence",
-                },
-                {
-                  id: "claude-opus-4-6",
-                  label: "Claude Opus 4.6",
-                  desc: "Most advanced",
-                },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setModel(m.id)}
-                  className="bg-white rounded-lg p-4 text-left transition-all"
+
+            {/* Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+                className="w-full bg-white rounded-lg px-4 py-3 text-left flex items-center justify-between transition-all"
+                style={{
+                  border: "1px solid rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                <span className="text-sm" style={{ color: "#333334" }}>
+                  {models.length === 0
+                    ? "Select models..."
+                    : models.length === 1
+                    ? models
+                        .map((id) => {
+                          const modelMap: Record<string, string> = {
+                            "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+                            "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5",
+                            "claude-opus-4-5-20250820": "Claude Opus 4.5",
+                            "claude-opus-4-6": "Claude Opus 4.6",
+                          };
+                          return modelMap[id] || id;
+                        })
+                        .join(", ")
+                    : `${models.length} models selected`}
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   style={{
-                    border:
-                      model === m.id
-                        ? "2px solid #DC6743"
-                        : "1px solid rgba(0, 0, 0, 0.1)",
+                    transform: modelDropdownOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                    color: "#666",
                   }}
                 >
-                  <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                    {m.label}
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: "#666" }}>
-                    {m.desc}
-                  </p>
-                </button>
-              ))}
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+
+              {modelDropdownOpen && (
+                <div
+                  className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-lg z-10"
+                  style={{
+                    border: "1px solid rgba(0, 0, 0, 0.1)",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+                  }}
+                >
+                  {[
+                    {
+                      id: "claude-haiku-4-5-20251001",
+                      label: "Claude Haiku 4.5",
+                      desc: "Fast & affordable",
+                    },
+                    {
+                      id: "claude-sonnet-4-5-20250929",
+                      label: "Claude Sonnet 4.5",
+                      desc: "Recommended — best balance",
+                    },
+                    {
+                      id: "claude-opus-4-5-20250820",
+                      label: "Claude Opus 4.5",
+                      desc: "Premium intelligence",
+                    },
+                    {
+                      id: "claude-opus-4-6",
+                      label: "Claude Opus 4.6",
+                      desc: "Most advanced",
+                    },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleModel(m.id)}
+                      className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
+                      style={{
+                        borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
+                      }}
+                    >
+                      {/* Checkbox */}
+                      <div
+                        className="w-5 h-5 rounded border flex items-center justify-center shrink-0"
+                        style={{
+                          border: models.includes(m.id)
+                            ? "2px solid #DC6743"
+                            : "1px solid rgba(0, 0, 0, 0.2)",
+                          background: models.includes(m.id) ? "#DC6743" : "transparent",
+                        }}
+                      >
+                        {models.includes(m.id) && (
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#ffffff"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Label */}
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                          {m.label}
+                        </p>
+                        <p className="text-xs" style={{ color: "#666" }}>
+                          {m.desc}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
+            <p className="text-xs mt-2" style={{ color: "#666" }}>
+              Click the dropdown to select the models you want available
+            </p>
           </div>
         )}
 
@@ -791,7 +1007,7 @@ export default function ConnectPage() {
 
         <button
           onClick={handleContinue}
-          disabled={channels.length === 0 || (channels.includes("telegram") && !verified)}
+          disabled={!selectedChannel || (selectedChannel === "telegram" && !verified)}
           className="w-full px-6 py-3.5 rounded-lg text-base font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
             background: "#DC6743",
