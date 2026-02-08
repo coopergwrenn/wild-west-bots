@@ -79,15 +79,28 @@ export function Pricing() {
             </span>
             <button
               onClick={() => setIsByok(!isByok)}
-              className="relative w-12 h-6 rounded-full transition-colors cursor-pointer"
+              className="relative w-12 h-6 rounded-full transition-all cursor-pointer"
               style={{
-                background: isByok ? "var(--accent)" : "rgba(0, 0, 0, 0.15)",
+                background: "linear-gradient(-75deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.1))",
+                boxShadow: `
+                  rgba(0, 0, 0, 0.15) 0px 1px 2px 0px inset,
+                  rgba(255, 255, 255, 0.1) 0px -1px 1px 0px inset
+                `,
               }}
             >
               <span
-                className="absolute top-1 w-4 h-4 rounded-full transition-transform"
+                className="absolute top-1 w-4 h-4 rounded-full transition-all"
                 style={{
-                  background: isByok ? "#ffffff" : "var(--foreground)",
+                  background: isByok
+                    ? "linear-gradient(-75deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.9))"
+                    : "linear-gradient(-75deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8))",
+                  boxShadow: `
+                    rgba(0, 0, 0, 0.1) 0px 1px 3px 0px,
+                    rgba(255, 255, 255, 0.4) 0px -1px 1px 0px inset,
+                    rgba(0, 0, 0, 0.05) 0px 1px 1px 0px inset
+                  `,
+                  backdropFilter: "blur(4px)",
+                  WebkitBackdropFilter: "blur(4px)",
                   left: isByok ? "28px" : "4px",
                 }}
               />
