@@ -101,33 +101,18 @@ export function Hero() {
           A personal AI that works for you{" "}
           <span className="relative inline-block">
             around the clock
-            <motion.svg
-              className="absolute pointer-events-none"
+            <motion.span
+              className="absolute pointer-events-none left-0 bottom-0"
               style={{
-                left: "0",
-                bottom: "-2px",
-                width: "100%",
-                height: "8px",
+                height: "2px",
+                background: "var(--accent)",
+                borderRadius: "1px",
+                transformOrigin: "left center",
               }}
-              viewBox="0 0 100 8"
-              xmlns="http://www.w3.org/2000/svg"
-              preserveAspectRatio="none"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.8 }}
-              transition={{ delay: 1.4, duration: 0.1 }}
-            >
-              <motion.path
-                d="M0,4 Q25,2 50,4 Q75,6 100,4"
-                vectorEffect="non-scaling-stroke"
-                fill="none"
-                stroke="var(--accent)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ delay: 1.4, duration: 0.6, ease: "easeOut" }}
-              />
-            </motion.svg>
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "100%", opacity: 0.8 }}
+              transition={{ delay: 1.4, duration: 0.6, ease: "easeOut" }}
+            />
           </span>
           . It handles your tasks,{" "}
           <span className="relative inline-block">
