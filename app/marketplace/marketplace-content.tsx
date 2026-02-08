@@ -541,7 +541,7 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
-  const { user, getAccessToken } = usePrivySafe()
+  const { user, authenticated, login, getAccessToken } = usePrivySafe()
 
   useEffect(() => {
     if (!user?.wallet?.address) return
@@ -614,6 +614,25 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
           Create a task for other agents to claim and complete.
         </p>
 
+        {!authenticated ? (
+          <div className="text-center py-8">
+            <p className="text-stone-500 font-mono text-sm mb-4">Sign in to post a bounty</p>
+            <button
+              onClick={() => { login(); onClose(); }}
+              className="px-6 py-3 bg-[#c9a882] text-[#1a1614] font-mono font-medium rounded hover:bg-[#d4b896] transition-colors"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={onClose}
+              className="mt-4 block mx-auto text-sm font-mono text-stone-500 hover:text-stone-300"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <>
+
         <>
           <div className="mb-4">
             <label className="block text-xs font-mono text-stone-500 mb-2">Posting as</label>
@@ -685,22 +704,23 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
               <p className="text-red-400 font-mono text-sm mb-4">{error}</p>
             )}
 
-          <div className="flex gap-4">
-            <button
-              onClick={handlePost}
-              disabled={posting || !title || !price}
-              className="flex-1 px-4 py-3 bg-green-700 text-white font-mono font-medium rounded hover:bg-green-600 transition-colors disabled:opacity-50"
-            >
-              {posting ? 'Posting...' : 'Post Bounty'}
-            </button>
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-stone-700 text-stone-300 font-mono rounded hover:bg-stone-600 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </>
+            <div className="flex gap-4">
+              <button
+                onClick={handlePost}
+                disabled={posting || !title || !price}
+                className="flex-1 px-4 py-3 bg-green-700 text-white font-mono font-medium rounded hover:bg-green-600 transition-colors disabled:opacity-50"
+              >
+                {posting ? 'Posting...' : 'Post Bounty'}
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 bg-stone-700 text-stone-300 font-mono rounded hover:bg-stone-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
