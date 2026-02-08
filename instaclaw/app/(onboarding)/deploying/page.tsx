@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, AlertCircle, RotateCcw } from "lucide-react";
 
 type StepStatus = "pending" | "active" | "done" | "error";
@@ -81,10 +81,11 @@ function RotatingMessage({ messages }: { messages: string[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Main page
+// Main page content (wrapped in Suspense below)
 // ---------------------------------------------------------------------------
-export default function DeployingPage() {
+function DeployingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [steps, setSteps] = useState<DeployStep[]>([
     { id: "payment", label: "Payment confirmed", status: "done" },
     { id: "assign", label: "Assigning server", status: "active" },
@@ -106,13 +107,66 @@ export default function DeployingPage() {
   const [justCompleted, setJustCompleted] = useState<Set<string>>(new Set());
   const completedRef = useRef<Set<string>>(new Set(["payment"]));
 
-  // ---- Initial validation: Check for valid checkout/pending user ----
+  // ---- Immediate checkout verification and VM assignment ----
   useEffect(() => {
     if (validationChecked.current) return;
     validationChecked.current = true;
 
-    async function validateCheckout() {
+    async function verifyAndAssign() {
       try {
+        const sessionId = searchParams.get("session_id");
+
+        // If there's a session_id, verify it immediately
+        if (sessionId) {
+          console.log("Verifying checkout session:", sessionId);
+
+          const verifyRes = await fetch("/api/checkout/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId }),
+          });
+
+          if (verifyRes.ok) {
+            const verifyData = await verifyRes.json();
+            console.log("Checkout verification result:", verifyData);
+
+            if (verifyData.verified && verifyData.status === "paid") {
+              // Payment confirmed, VM assignment triggered
+              if (verifyData.vmAssigned) {
+                console.log("VM assigned immediately via verification!");
+              } else if (verifyData.error === "no_vms") {
+                setValidationError("No servers available. All instances are currently in use.");
+                setErrorType("no_vms");
+                setPolling(false);
+                setSteps((prev) =>
+                  prev.map((s) => (s.id === "assign" ? { ...s, status: "error" } : s))
+                );
+                return;
+              } else if (verifyData.error === "assignment_failed") {
+                setValidationError("Server assignment failed. Please contact support.");
+                setErrorType("assignment");
+                setPolling(false);
+                setSteps((prev) =>
+                  prev.map((s) => (s.id === "assign" ? { ...s, status: "error" } : s))
+                );
+                return;
+              }
+              // Continue with normal polling to track progress
+              return;
+            } else {
+              // Payment not completed
+              setValidationError("Payment not completed. Please try again.");
+              setErrorType("checkout");
+              setPolling(false);
+              setSteps((prev) =>
+                prev.map((s) => (s.id === "payment" ? s : { ...s, status: "error" }))
+              );
+              return;
+            }
+          }
+        }
+
+        // Fallback: Check VM status if no session_id or verification failed
         const res = await fetch("/api/vm/status");
         const data = await res.json();
 
@@ -128,7 +182,7 @@ export default function DeployingPage() {
         }
 
         // Check if pending user exists but has no stripe session
-        if (data.status === "pending" && !data.stripeSessionId) {
+        if (data.status === "pending" && !data.stripeSessionId && !sessionId) {
           setValidationError("Payment session not found. Please restart from plan selection.");
           setErrorType("checkout");
           setPolling(false);
@@ -138,13 +192,13 @@ export default function DeployingPage() {
           return;
         }
       } catch (err) {
-        console.error("Validation check failed:", err);
-        // Don't block on validation errors, let polling handle it
+        console.error("Verification/validation check failed:", err);
+        // Don't block on errors, let polling handle it
       }
     }
 
-    validateCheckout();
-  }, []);
+    verifyAndAssign();
+  }, [searchParams]);
 
   const updateStep = useCallback((id: string, status: StepStatus) => {
     setSteps((prev) =>
@@ -661,5 +715,23 @@ export default function DeployingPage() {
         )}
       </div>
     </>
+  );
+}
+
+// Wrap in Suspense for useSearchParams
+export default function DeployingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#f8f7f4" }}>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" style={{ borderColor: "#DC6743" }}></div>
+            <p className="text-base" style={{ color: "#666666" }}>Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <DeployingPageContent />
+    </Suspense>
   );
 }

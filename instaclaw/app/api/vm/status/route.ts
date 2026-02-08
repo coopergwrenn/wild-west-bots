@@ -121,22 +121,6 @@ export async function GET() {
 
     // No VM, no pending user - shouldn't happen but handle it
     return NextResponse.json({ status: "no_user" });
-
-    // Check subscription status
-    const { data: sub } = await supabase
-      .from("instaclaw_subscriptions")
-      .select("status, tier")
-      .eq("user_id", session.user.id)
-      .single();
-
-    if (sub?.status === "active") {
-      return NextResponse.json({
-        status: "awaiting_config",
-        tier: sub.tier,
-      });
-    }
-
-    return NextResponse.json({ status: "no_subscription" });
   } catch (err) {
     logger.error("VM status error", { error: String(err), route: "vm/status" });
     return NextResponse.json(

@@ -57,6 +57,22 @@ export async function POST(req: NextRequest) {
         { onConflict: "user_id" }
       );
 
+      // Check if user already has a VM (verification endpoint may have assigned already)
+      const { data: existingVm } = await supabase
+        .from("instaclaw_vms")
+        .select("id")
+        .eq("assigned_to", userId)
+        .single();
+
+      if (existingVm) {
+        logger.info("VM already assigned, skipping webhook assignment", {
+          route: "billing/webhook",
+          userId,
+          vmId: existingVm.id,
+        });
+        break;
+      }
+
       // Check if user has pending config, if so trigger VM assignment
       const { data: pending } = await supabase
         .from("instaclaw_pending_users")
