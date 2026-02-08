@@ -2,13 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const REVEAL_TEXT =
-  "We believe everyone deserves a personal AI that actually does things. Not just chat. Not just suggest. Actually take action on your behalf. Literally anything.";
-
-export function ScrollReveal() {
+export function ScrollReveal({ text }: { text: string }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [revealedCount, setRevealedCount] = useState(0);
-  const words = REVEAL_TEXT.split(" ");
+  const words = text.split(" ");
 
   useEffect(() => {
     const section = sectionRef.current;
