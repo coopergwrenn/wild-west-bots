@@ -257,12 +257,14 @@ export default function PlanPage() {
             const cardContent = (
               <div className="text-left relative rounded-lg p-6" style={{ background: "#ffffff" }}>
                 {tier.popular && (
-                  <span
-                    className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold"
-                    style={{ background: "#DC6743", color: "#ffffff" }}
-                  >
-                    Popular
-                  </span>
+                  <div className="flex justify-center mb-4">
+                    <span
+                      className="inline-block px-3 py-1 rounded-full text-xs font-semibold"
+                      style={{ background: "#DC6743", color: "#ffffff" }}
+                    >
+                      Popular
+                    </span>
+                  </div>
                 )}
                 {tier.trial && (
                   <div
