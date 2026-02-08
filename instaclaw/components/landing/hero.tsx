@@ -21,7 +21,7 @@ export function Hero() {
         transition={{ delay: 0.2, duration: 0.5, ease: SNAPPY }}
       >
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="InstaClaw" width={28} height={28} />
+          <Image src="/logo.png" alt="InstaClaw" width={36} height={36} />
           <span className="text-lg font-bold tracking-tight">
             Insta<span style={{ color: "var(--accent)" }}>Claw</span>
           </span>
