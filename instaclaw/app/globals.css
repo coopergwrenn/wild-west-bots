@@ -190,16 +190,17 @@ html.lenis body {
 }
 
 @keyframes glow-pulse-orange {
-  0%, 100% { box-shadow: 0 0 8px rgba(220, 103, 67, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(220, 103, 67, 0.35), 0 0 40px rgba(220, 103, 67, 0.1); }
+  0%, 100% { box-shadow: 0 0 8px rgba(220, 103, 67, 0.15); }
+  50% { box-shadow: 0 0 20px rgba(220, 103, 67, 0.3), 0 0 40px rgba(220, 103, 67, 0.08); }
 }
 
 .glow-border {
   position: relative;
-  padding: 2px;
+  padding: 1.5px;
   border-radius: 0.5rem;
   overflow: hidden;
   animation: glow-pulse-orange 3s ease-in-out infinite;
+  display: inline-flex;
 }
 
 .glow-border > .glow-spinner {
@@ -223,5 +224,7 @@ html.lenis body {
 .glow-border > .glow-content {
   position: relative;
   z-index: 1;
-  border-radius: calc(0.5rem - 2px);
+  border-radius: calc(0.5rem - 1.5px);
+  background: #ffffff;
+  width: 100%;
 }
