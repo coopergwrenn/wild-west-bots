@@ -46,26 +46,27 @@ function Circle({ children, revealed }: { children: string; revealed: boolean })
       <svg
         className="absolute pointer-events-none"
         style={{
-          left: "-8px",
-          top: "-6px",
-          width: "calc(100% + 16px)",
-          height: "calc(100% + 12px)",
+          left: "-10px",
+          top: "-8px",
+          width: "calc(100% + 20px)",
+          height: "calc(100% + 16px)",
         }}
         xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
       >
-        <ellipse
-          cx="50%"
-          cy="50%"
-          rx="48%"
-          ry="48%"
+        <path
+          d="M15,50 Q20,15 50,12 Q80,15 85,50 Q82,82 50,88 Q18,85 15,50 Z"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
-          strokeDasharray="4 2"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
           style={{
-            strokeDashoffset: revealed ? 0 : 100,
+            strokeDasharray: "300",
+            strokeDashoffset: revealed ? 0 : 300,
             transition: "stroke-dashoffset 0.8s ease-out",
-            opacity: revealed ? 0.6 : 0,
+            opacity: revealed ? 0.7 : 0,
           }}
         />
       </svg>
