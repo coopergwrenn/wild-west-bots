@@ -278,6 +278,29 @@ html.lenis body {
   width: 100%;
 }
 
+/* Claude Code shimmer — orange base with golden highlight sweep */
+.shimmer-text {
+  color: transparent;
+  background: linear-gradient(
+    90deg,
+    #f97316 0%,
+    #f97316 35%,
+    #fde68a 50%,
+    #f97316 65%,
+    #f97316 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 /* iMessage bubble with tail (like real iOS Messages) */
 .imessage-bubble {
   position: relative;

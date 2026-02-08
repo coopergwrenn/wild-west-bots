@@ -138,28 +138,16 @@ export function Comparison() {
           ))}
         </div>
 
-        {/* Bottom punchline with glow */}
-        <motion.div
-          className="flex justify-center mt-10"
+        {/* Bottom punchline with shimmer */}
+        <motion.p
+          className="text-center mt-10 text-sm sm:text-base font-semibold shimmer-text"
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-40px" }}
           transition={{ delay: 0.4, duration: 0.6, ease: SNAPPY }}
         >
-          <div className="glow-wrap" style={{ width: "auto" }}>
-            <div className="glow-border" style={{ width: "auto" }}>
-              <div className="glow-spinner" />
-              <div className="glow-content" style={{ background: "var(--background, #f8f7f4)" }}>
-                <p
-                  className="px-6 py-3 text-sm sm:text-base font-medium"
-                  style={{ color: "var(--accent)" }}
-                >
-                  Skip the setup. Be live in minutes.
-                </p>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+          Skip the setup. Be live in minutes.
+        </motion.p>
       </div>
     </section>
   );
