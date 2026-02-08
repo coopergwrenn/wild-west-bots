@@ -18,43 +18,43 @@ const features = [
     icon: Zap,
     title: "Instant Deployment",
     description:
-      "Go from zero to a live OpenClaw instance in minutes. No DevOps required.",
+      "Sign up and your AI is ready to go — no technical setup, no waiting.",
   },
   {
     icon: Terminal,
-    title: "Full Shell Access",
+    title: "Your Own Computer",
     description:
-      "Your own dedicated VM with shell access, file system, and browser automation.",
+      "Your AI gets its own private machine. It can browse the web, manage files, and run tasks — just like you would.",
   },
   {
     icon: Shield,
     title: "Always On",
     description:
-      "99.9% uptime with auto-healing. Your instance never sleeps, even when you do.",
+      "Your AI works around the clock. It never takes a break, even while you sleep.",
   },
   {
     icon: Brain,
     title: "Skills & Memory",
     description:
-      "Full OpenClaw feature set — skills, persistent memory, and custom configurations.",
+      "It learns what you like, remembers past conversations, and picks up new abilities over time. The more you use it, the better it gets.",
   },
   {
     icon: CreditCard,
     title: "Simple Pricing",
     description:
-      "Flat monthly fee, everything included. Or bring your own API key and save.",
+      "One flat monthly price, everything included. No hidden fees, no surprises.",
   },
   {
     icon: Globe,
-    title: "BYOK Option",
+    title: "Power User Friendly",
     description:
-      "Bring your own Anthropic API key for maximum flexibility and lower costs.",
+      "Already have your own AI account? Connect it directly and save on costs.",
   },
   {
     icon: Fingerprint,
     title: "Human Verification",
     description:
-      "Prove there's a real person behind your agent. Verified agents earn a public trust badge — powered by World ID's privacy-preserving proof of personhood.",
+      "Prove there's a real person behind your AI. Get a verified trust badge so others know your agent is legit.",
   },
 ];
 

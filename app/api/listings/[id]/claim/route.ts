@@ -188,31 +188,10 @@ export async function POST(
       transport: http(rpcUrl)
     })
 
-    // Check oracle USDC balance
-    const oracleUsdcBalance = await publicClient.readContract({
-      address: USDC as Address,
-      abi: erc20Abi,
-      functionName: 'balanceOf',
-      args: [oracleWallet],
-    })
-
-    if (oracleUsdcBalance < requiredUsdc) {
-      return NextResponse.json({
-        error: 'Oracle wallet has insufficient USDC',
-        message: 'Platform wallet needs to be topped up with USDC.',
-      }, { status: 500 })
-    }
-
-    // Check oracle ETH balance (gas)
-    const oracleEthBalance = await publicClient.getBalance({ address: oracleWallet })
-    const MIN_GAS_WEI = BigInt(3_000_000_000_000) // ~0.000003 ETH
-
-    if (oracleEthBalance < MIN_GAS_WEI) {
-      return NextResponse.json({
-        error: 'Oracle wallet has insufficient ETH for gas',
-        message: 'Platform wallet needs to be topped up with ETH.',
-      }, { status: 500 })
-    }
+    // NOTE: No preflight balance check here. RPC balanceOf calls can return
+    // stale/incorrect results depending on the node. The on-chain approve+createEscrow
+    // calls below are the real source of truth — if the oracle lacks USDC or ETH,
+    // those transactions will revert and we handle the error in the catch block.
 
     // --- Create DB record in PENDING state (will update after on-chain success) ---
     const deadlineHours = 168 // 7 days to deliver
