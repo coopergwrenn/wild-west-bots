@@ -61,7 +61,7 @@ const features = [
 export function Features() {
   return (
     <section className="py-16 sm:py-[12vh] px-4">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <motion.div
           className="text-center mb-16"
           initial={{ opacity: 0, y: 20 }}
@@ -75,32 +75,57 @@ export function Features() {
           >
             Everything You Need
           </h2>
-          <p style={{ color: "var(--muted)" }}>
-            A full OpenClaw instance, zero complexity.
-          </p>
         </motion.div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Clean-line vertical list — no cards */}
+        <div className="space-y-0">
           {features.map((feature, i) => (
             <motion.div
               key={feature.title}
-              className="glass rounded-xl p-6"
+              className="relative"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ delay: i * 0.1, duration: 0.6, ease: SNAPPY }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ delay: i * 0.08, duration: 0.6, ease: SNAPPY }}
             >
-              <feature.icon
-                className="w-8 h-8 mb-4"
-                style={{ color: "var(--accent)" }}
+              {/* Top border line */}
+              <div
+                className="h-px w-full"
+                style={{ background: "var(--border)" }}
               />
-              <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-              <p
-                className="text-sm leading-relaxed"
-                style={{ color: "var(--muted)" }}
-              >
-                {feature.description}
-              </p>
+
+              <div className="flex gap-5 sm:gap-8 py-8 sm:py-10 items-start">
+                {/* Icon */}
+                <feature.icon
+                  className="w-6 h-6 shrink-0 mt-1"
+                  style={{ color: "var(--accent)" }}
+                  strokeWidth={1.5}
+                />
+
+                {/* Content */}
+                <div>
+                  <h3
+                    className="text-xl sm:text-2xl font-normal tracking-[-0.5px] mb-2"
+                    style={{ fontFamily: "var(--font-serif)" }}
+                  >
+                    {feature.title}
+                  </h3>
+                  <p
+                    className="text-sm sm:text-base leading-relaxed max-w-md"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bottom border on last item */}
+              {i === features.length - 1 && (
+                <div
+                  className="h-px w-full"
+                  style={{ background: "var(--border)" }}
+                />
+              )}
             </motion.div>
           ))}
         </div>
