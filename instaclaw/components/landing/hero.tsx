@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { signIn, useSession } from "next-auth/react";
 import { WaitlistForm } from "./waitlist-form";
+import { SpotsCounter } from "./spots-counter";
 
 const SNAPPY = [0.23, 1, 0.32, 1] as const;
 
@@ -136,6 +137,14 @@ export function Hero() {
           </Link>
         </motion.p>
 
+        {/* Live spots counter */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2, duration: 0.7, ease: SNAPPY }}
+        >
+          <SpotsCounter />
+        </motion.div>
 
       </motion.div>
     </section>
