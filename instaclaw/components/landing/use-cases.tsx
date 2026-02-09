@@ -7,7 +7,8 @@ const useCases = [
   "Customer Support",
   "Writing Coach",
   "Research Assistant",
-  "CEO (Basically)",
+  "CEO",
+  "Your New Best Friend",
   "Community Manager",
   "Sales Outreach",
   "Lead Generation",
@@ -16,6 +17,7 @@ const useCases = [
   "Health Coach",
   "Meeting Notes",
   "Your New Employee",
+  "The Intern That Never Sleeps",
   "Data Entry & Reports",
 ];
 
@@ -61,8 +63,8 @@ function MarqueeRow({
 }
 
 export function UseCases() {
-  const firstHalf = useCases.slice(0, 9);
-  const secondHalf = useCases.slice(9);
+  const firstHalf = useCases.slice(0, 10);
+  const secondHalf = useCases.slice(10);
 
   return (
     <section className="py-16 sm:py-[12vh] overflow-x-clip">
