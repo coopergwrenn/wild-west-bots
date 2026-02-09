@@ -60,9 +60,16 @@ export function Hero() {
             onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all"
             style={{
-              border: "1px solid var(--foreground)",
+              background: "linear-gradient(-75deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05))",
+              backdropFilter: "blur(2px)",
+              WebkitBackdropFilter: "blur(2px)",
+              boxShadow: `
+                rgba(0, 0, 0, 0.05) 0px 2px 2px 0px inset,
+                rgba(255, 255, 255, 0.5) 0px -2px 2px 0px inset,
+                rgba(0, 0, 0, 0.1) 0px 2px 4px 0px,
+                rgba(255, 255, 255, 0.2) 0px 0px 1.6px 4px inset
+              `,
               color: "var(--foreground)",
-              background: "transparent",
             }}
           >
             Sign In
