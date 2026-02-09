@@ -365,7 +365,7 @@ export function Testimonials() {
         </h2>
       </div>
 
-      <div className="relative pause-on-hover">
+      <div className="relative">
         <div
           className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
           style={{
