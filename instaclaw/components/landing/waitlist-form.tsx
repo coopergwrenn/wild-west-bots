@@ -67,7 +67,7 @@ export function WaitlistForm() {
           `,
         }}
       >
-        <form onSubmit={handleSubmit} className="flex p-1 gap-1">
+        <form onSubmit={handleSubmit} className="flex flex-col min-[370px]:flex-row p-1 gap-1">
           <input
             type="email"
             placeholder="you@example.com"
@@ -86,7 +86,7 @@ export function WaitlistForm() {
                 <button
                   type="submit"
                   disabled={state === "loading"}
-                  className="px-8 py-3 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap rounded-lg"
+                  className="w-full min-[370px]:w-auto px-8 min-[370px]:px-4 sm:px-8 py-3 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 whitespace-nowrap rounded-lg"
                   style={{
                     background: "var(--accent)",
                     color: "#ffffff",
