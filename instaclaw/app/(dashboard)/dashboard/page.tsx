@@ -356,7 +356,7 @@ export default function DashboardPage() {
                   className="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-white/30"
                   style={{ border: "1px solid var(--border)" }}
                 >
-                  <ExternalLink className="w-5 h-5 text-white" />
+                  <ExternalLink className="w-5 h-5" style={{ color: "#333334" }} />
                   <div>
                     <p className="text-sm font-semibold">Control Panel</p>
                     <p
@@ -377,7 +377,7 @@ export default function DashboardPage() {
                   className="glass rounded-xl p-4 flex items-center gap-3 transition-all hover:border-white/30"
                   style={{ border: "1px solid var(--border)" }}
                 >
-                  <Send className="w-5 h-5 text-white" />
+                  <Send className="w-5 h-5" style={{ color: "#333334" }} />
                   <div>
                     <p className="text-sm font-semibold">Open Telegram</p>
                     <p
@@ -397,7 +397,8 @@ export default function DashboardPage() {
                 style={{ border: "1px solid var(--border)" }}
               >
                 <RefreshCw
-                  className={`w-5 h-5 text-white ${restarting ? "animate-spin" : ""}`}
+                  className={`w-5 h-5 ${restarting ? "animate-spin" : ""}`}
+                  style={{ color: "#333334" }}
                 />
                 <div>
                   <p className="text-sm font-semibold">Restart Bot</p>
