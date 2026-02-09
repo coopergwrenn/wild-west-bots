@@ -79,14 +79,14 @@ export function Hero() {
 
       {/* Hand-drawn squiggly arrow — left side, pointing at form */}
       <motion.svg
-        className="hidden lg:block absolute pointer-events-none z-10"
+        className="hidden xl:block absolute pointer-events-none z-10"
         style={{
-          left: "calc(50% - 520px)",
-          top: "calc(50% - 40px)",
-          width: "340px",
-          height: "320px",
+          left: "calc(50% - 540px)",
+          top: "calc(50% - 82px)",
+          width: "380px",
+          height: "340px",
         }}
-        viewBox="0 0 240 240"
+        viewBox="0 0 300 220"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
@@ -95,7 +95,7 @@ export function Hero() {
         transition={{ delay: 1.6, duration: 0.3 }}
       >
         <motion.path
-          d="M30,15 C18,10 8,22 16,35 C24,48 44,40 38,56 C32,72 12,72 22,90 C32,108 54,98 50,118 C46,138 60,148 80,160 C100,172 140,175 180,192"
+          d="M28,16 C16,8 4,22 14,36 C24,50 44,40 38,58 C32,76 12,76 24,94 C36,112 56,102 52,122 C48,142 62,150 86,152 C110,154 170,148 232,150"
           stroke="var(--accent)"
           strokeWidth="2.5"
           strokeLinecap="round"
@@ -104,9 +104,9 @@ export function Hero() {
           animate={{ pathLength: 1 }}
           transition={{ delay: 1.6, duration: 1.4, ease: "easeOut" }}
         />
-        {/* Arrowhead pointing toward form */}
+        {/* Arrowhead pointing right at the form */}
         <motion.path
-          d="M170,182 L185,195 L175,202"
+          d="M222,141 L240,150 L222,159"
           stroke="var(--accent)"
           strokeWidth="2.5"
           strokeLinecap="round"
