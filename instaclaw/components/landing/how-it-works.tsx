@@ -61,16 +61,37 @@ export function HowItWorks() {
                 style={{ background: "var(--border)" }}
               />
 
-              <div className="flex gap-6 sm:gap-10 py-10 sm:py-14 items-baseline">
-                {/* Step number */}
+              <div className="flex gap-6 sm:gap-10 py-10 sm:py-14 items-start">
+                {/* Step number in glass orb */}
                 <span
-                  className="text-5xl sm:text-6xl font-normal tracking-[-2px] shrink-0 leading-none"
+                  className="shrink-0 mt-1 flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-full relative overflow-hidden"
                   style={{
-                    fontFamily: "var(--font-serif)",
-                    color: "var(--accent)",
+                    background: "radial-gradient(circle at 38% 32%, rgba(220,103,67,0.3), rgba(220,103,67,0.12) 55%, rgba(180,70,40,0.2) 100%)",
+                    boxShadow: `
+                      inset 0 2px 4px rgba(255,255,255,0.45),
+                      inset 0 -2px 4px rgba(0,0,0,0.12),
+                      inset 0 0 6px rgba(220,103,67,0.08),
+                      0 2px 6px rgba(220,103,67,0.1),
+                      0 1px 2px rgba(0,0,0,0.06)
+                    `,
                   }}
                 >
-                  {step.number}
+                  {/* Glass highlight */}
+                  <span
+                    className="absolute top-[3px] left-[5px] w-[16px] sm:w-[18px] h-[8px] sm:h-[9px] rounded-full pointer-events-none"
+                    style={{
+                      background: "linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 100%)",
+                    }}
+                  />
+                  <span
+                    className="relative text-base sm:text-lg font-medium tracking-[-0.5px]"
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    {step.number}
+                  </span>
                 </span>
 
                 {/* Content */}
