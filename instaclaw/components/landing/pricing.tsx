@@ -223,13 +223,16 @@ export function Pricing() {
           viewport={{ once: true }}
           transition={{ delay: 0.4, duration: 0.6, ease: SNAPPY }}
         >
-          <div
-            className="inline-flex items-center gap-2 px-6 py-2 rounded-full"
+          <a
+            href="https://openclaw.ai/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-6 py-2 rounded-full hover:opacity-80 transition-opacity"
             style={glassStyle}
           >
             <span className="text-xs" style={{ color: "var(--foreground)" }}>Powered by</span>
             <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>OpenClaw</span>
-          </div>
+          </a>
         </motion.div>
 
         {/* BYOK note */}
