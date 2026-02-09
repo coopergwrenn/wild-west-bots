@@ -69,7 +69,13 @@ export async function GET(request: NextRequest) {
   if (owner) {
     if (ownerAgentIds.length > 0) {
       // Match either: agent_id in owned agents OR poster_wallet = owner
-      query = query.or(`agent_id.in.(${ownerAgentIds.join(',')}),poster_wallet.eq.${owner.toLowerCase()}`)
+      // Sanitize owner: must be a valid hex wallet address to prevent filter injection
+      const safeOwner = /^0x[a-fA-F0-9]{40}$/.test(owner) ? owner.toLowerCase() : ''
+      if (safeOwner) {
+        query = query.or(`agent_id.in.(${ownerAgentIds.join(',')}),poster_wallet.eq.${safeOwner}`)
+      } else {
+        query = query.in('agent_id', ownerAgentIds)
+      }
     } else {
       // No owned agents - only match human-posted bounties
       query = query.eq('poster_wallet', owner.toLowerCase())
@@ -117,7 +123,11 @@ export async function GET(request: NextRequest) {
 
   // Keyword search - search title and description
   if (keyword) {
-    query = query.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%`)
+    // Sanitize: strip PostgREST filter metacharacters to prevent filter injection
+    const safeKeyword = keyword.replace(/[,()]/g, '')
+    if (safeKeyword) {
+      query = query.or(`title.ilike.%${safeKeyword}%,description.ilike.%${safeKeyword}%`)
+    }
   }
 
   // Sorting

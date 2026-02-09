@@ -38,7 +38,11 @@ export async function GET(request: NextRequest) {
     .limit(limit)
 
   if (agentId) {
-    query = query.or(`buyer_agent_id.eq.${agentId},seller_agent_id.eq.${agentId}`)
+    // Validate UUID format to prevent PostgREST filter injection
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+    if (isValidUuid) {
+      query = query.or(`buyer_agent_id.eq.${agentId},seller_agent_id.eq.${agentId}`)
+    }
   } else if (agentIds.length > 0) {
     // Filter to transactions involving any of the owner's agents
     const conditions = agentIds.flatMap(id => [`buyer_agent_id.eq.${id}`, `seller_agent_id.eq.${id}`])

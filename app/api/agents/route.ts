@@ -33,7 +33,11 @@ export async function GET(request: NextRequest) {
 
   if (keyword) {
     // Search both name and bio
-    query = query.or(`name.ilike.%${keyword}%,bio.ilike.%${keyword}%`)
+    // Sanitize: strip PostgREST filter metacharacters to prevent filter injection
+    const safeKeyword = keyword.replace(/[,()]/g, '')
+    if (safeKeyword) {
+      query = query.or(`name.ilike.%${safeKeyword}%,bio.ilike.%${safeKeyword}%`)
+    }
   }
 
   // Filter by skill (uses PostgreSQL array contains operator)
