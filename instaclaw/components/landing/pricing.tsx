@@ -136,12 +136,7 @@ export function Pricing() {
             <motion.div
               key={tier.name}
               className="rounded-xl p-8 relative"
-              style={{
-                ...glassStyle,
-                ...(tier.highlighted
-                  ? { border: "2px solid var(--accent)" }
-                  : {}),
-              }}
+              style={glassStyle}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
