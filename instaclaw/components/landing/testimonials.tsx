@@ -191,7 +191,7 @@ const testimonials = {
     },
     {
       quote:
-        "I don't know anything about tech. I told it what I needed in plain English and it just handled everything. Like magic.",
+        "I just talk to it like a person. No setup guide, no tutorials. I told it what I needed and it figured out the rest. A week later it was doing things I didn't even ask for yet.",
       name: "James K.",
       role: "Small Business Owner",
       initials: "JK",
@@ -228,14 +228,14 @@ const testimonials = {
     },
     {
       quote:
-        "It's like having an entire team that works 24/7 and never complains. I just think of something and it's already doing it.",
+        "It literally gets smarter every week. I taught it how I like my reports done and now it just does them perfectly without me saying anything. It learns your style.",
       name: "Rachel S.",
       role: "Marketing Manager",
       initials: "RS",
     },
     {
       quote:
-        "I asked it to research competitors, summarize the results, and draft a report. Done in 20 minutes. That used to take me days.",
+        "The InstaClaw dashboard makes everything so simple. I can see what my bot learned, what it's working on, and tweak anything in seconds. I'm not technical at all and I manage it myself.",
       name: "Tom H.",
       role: "Teacher",
       initials: "TH",
