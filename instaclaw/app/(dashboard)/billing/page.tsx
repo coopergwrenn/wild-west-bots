@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard } from "lucide-react";
 
 export default function BillingPage() {
   const [loading, setLoading] = useState(false);
@@ -40,10 +39,9 @@ export default function BillingPage() {
         <button
           onClick={openPortal}
           disabled={loading}
-          className="px-6 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+          className="px-6 py-3 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]"
           style={{ background: "#ffffff", color: "#000000" }}
         >
-          <CreditCard className="w-4 h-4" />
           {loading ? "Opening..." : "Manage Subscription"}
         </button>
       </div>
