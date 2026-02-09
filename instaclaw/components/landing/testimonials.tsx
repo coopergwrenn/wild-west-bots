@@ -1,3 +1,185 @@
+// Pixel art avatar definitions — 8×8 grids
+// h=hair, s=skin, e=eye, m=mouth, b=shirt, space=transparent
+type AvatarDef = { grid: string[]; colors: Record<string, string>; bg: string };
+
+const pixelAvatars: Record<string, AvatarDef> = {
+  // Sarah M. — female, brown hair, light skin
+  SM: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      "hhsssshh",
+      "h sese h",
+      "h ssss h",
+      "h smms h",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#5C3A1E", s: "#F5D0A9", e: "#1A1A1A", m: "#CC6666", b: "#6B8E9B" },
+    bg: "#E8DDD3",
+  },
+  // James K. — male, dark brown hair, light skin
+  JK: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      " hssssh ",
+      "  sese  ",
+      "  ssss  ",
+      "  smms  ",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#2C1810", s: "#FADDBA", e: "#1A1A1A", m: "#CC6666", b: "#4A6FA5" },
+    bg: "#D5DDE5",
+  },
+  // Priya R. — female, black hair, medium-dark skin
+  PR: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      "hhsssshh",
+      "h sese h",
+      "h ssss h",
+      "h smms h",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#1A1A2A", s: "#C68642", e: "#1A1A1A", m: "#B85C5C", b: "#B8860B" },
+    bg: "#E5D8C3",
+  },
+  // Marcus T. — male, black hair (tall), dark skin
+  MT: {
+    grid: [
+      " hhhhhh ",
+      " hhhhhh ",
+      " hssssh ",
+      "  sese  ",
+      "  ssss  ",
+      "  smms  ",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#1A1A2A", s: "#8D6E4C", e: "#1A1A1A", m: "#A0522D", b: "#E8734A" },
+    bg: "#E0D5CA",
+  },
+  // Ava L. — female, blonde hair (medium length), light skin
+  AL: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      "hhsssshh",
+      "h sese h",
+      "  ssss  ",
+      "  smms  ",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#D4A017", s: "#FFE0BD", e: "#1A1A1A", m: "#E8888A", b: "#7CB68E" },
+    bg: "#D8E5D5",
+  },
+  // Danny W. — male, brown hair, light skin, beard
+  DW: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      " hssssh ",
+      "  sese  ",
+      "  ssss  ",
+      "  hmmh  ",
+      "   hh   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#6B4226", s: "#FADDBA", e: "#1A1A1A", m: "#CC6666", b: "#333333" },
+    bg: "#D5D5D5",
+  },
+  // Rachel S. — female, auburn hair, light skin
+  RS: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      "hhsssshh",
+      "h sese h",
+      "h ssss h",
+      "h smms h",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#A0522D", s: "#FFE0BD", e: "#1A1A1A", m: "#CC6666", b: "#9B6B8E" },
+    bg: "#E5D5DE",
+  },
+  // Tom H. — male, brown hair, medium skin
+  TH: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      " hssssh ",
+      "  sese  ",
+      "  ssss  ",
+      "  smms  ",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#4A3728", s: "#D4A574", e: "#1A1A1A", m: "#B85C5C", b: "#5B7553" },
+    bg: "#D5E0D5",
+  },
+  // Nina P. — female, dark hair, medium skin
+  NP: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      "hhsssshh",
+      "h sese h",
+      "h ssss h",
+      "h smms h",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#2C1810", s: "#D4A574", e: "#1A1A1A", m: "#B85C5C", b: "#4A4A6A" },
+    bg: "#D8D5E0",
+  },
+  // Chris D. — male, light brown hair, light skin
+  CD: {
+    grid: [
+      "  hhhh  ",
+      " hhhhhh ",
+      " hssssh ",
+      "  sese  ",
+      "  ssss  ",
+      "  smms  ",
+      "   ss   ",
+      "  bbbb  ",
+    ],
+    colors: { h: "#C4A45A", s: "#FADDBA", e: "#1A1A1A", m: "#CC6666", b: "#5A8FA5" },
+    bg: "#D5E0E5",
+  },
+};
+
+function PixelAvatar({ initials }: { initials: string }) {
+  const data = pixelAvatars[initials];
+  if (!data) return null;
+
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 8 8"
+      xmlns="http://www.w3.org/2000/svg"
+      shapeRendering="crispEdges"
+    >
+      <rect width="8" height="8" fill={data.bg} />
+      {data.grid.map((row, y) =>
+        [...row].map((char, x) => {
+          if (char === " ") return null;
+          const color = data.colors[char];
+          if (!color) return null;
+          return <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={color} />;
+        })
+      )}
+    </svg>
+  );
+}
+
 const testimonials = {
   row1: [
     {
@@ -106,10 +288,28 @@ function TestimonialCard({
     >
       <div className="flex items-center gap-3 mb-3">
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-          style={{ background: "var(--accent)", color: "#ffffff" }}
+          className="w-11 h-11 rounded-full shrink-0 relative flex items-center justify-center"
+          style={{
+            background: `radial-gradient(circle at 35% 35%, ${pixelAvatars[initials]?.bg ?? "#ddd"}dd, ${pixelAvatars[initials]?.bg ?? "#ddd"}88 40%, rgba(0,0,0,0.3) 100%)`,
+            boxShadow: `
+              inset 0 -3px 6px rgba(0,0,0,0.25),
+              inset 0 3px 6px rgba(255,255,255,0.4),
+              inset 0 0 4px rgba(0,0,0,0.15),
+              0 2px 8px rgba(0,0,0,0.2),
+              0 1px 3px rgba(0,0,0,0.15)
+            `,
+          }}
         >
-          {initials}
+          {/* Glass highlight reflection */}
+          <div
+            className="absolute top-[3px] left-[6px] w-[18px] h-[10px] rounded-full pointer-events-none z-10"
+            style={{
+              background: "linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 100%)",
+            }}
+          />
+          <div className="w-8 h-8 rounded-full overflow-hidden relative z-[1]">
+            <PixelAvatar initials={initials} />
+          </div>
         </div>
         <div>
           <p className="font-medium text-sm" style={{ color: "var(--foreground)" }}>
