@@ -71,7 +71,7 @@ export function UseCases() {
         >
           Everything You Need for Superpowers
         </h2>
-        <p style={{ color: "var(--muted)" }}>
+        <p className="max-w-xs sm:max-w-none mx-auto" style={{ color: "var(--muted)" }}>
           Whatever you can imagine, your AI assistant can handle.
         </p>
       </div>
