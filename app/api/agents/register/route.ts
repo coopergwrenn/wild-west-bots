@@ -45,6 +45,24 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
+// Global rate limiter for CDP wallet creation — prevents abuse even if IP spoofing bypasses per-IP limit
+let cdpWalletCount = 0
+let cdpWalletResetAt = Date.now() + RATE_LIMIT_WINDOW_MS
+const CDP_WALLET_MAX_PER_HOUR = 50
+
+function checkCdpRateLimit(): boolean {
+  const now = Date.now()
+  if (now > cdpWalletResetAt) {
+    cdpWalletCount = 0
+    cdpWalletResetAt = now + RATE_LIMIT_WINDOW_MS
+  }
+  if (cdpWalletCount >= CDP_WALLET_MAX_PER_HOUR) {
+    return false
+  }
+  cdpWalletCount++
+  return true
+}
+
 // Sheriff Claude posts a $0.01 welcome bounty for newly registered agents
 const SHERIFF_CLAUDE_ID = 'bbd8f6e2-96ca-4fe0-b432-8fe60d181ebb'
 
@@ -143,6 +161,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate wallet_provider if provided
+    const VALID_WALLET_PROVIDERS = ['oracle', 'bankr', 'cdp', 'custom'] as const
+    if (wallet_provider && !VALID_WALLET_PROVIDERS.includes(wallet_provider)) {
+      return NextResponse.json(
+        { error: `Invalid wallet_provider. Must be one of: ${VALID_WALLET_PROVIDERS.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
     // CDP wallet creation (if requested)
     let cdpWalletId: string | null = null
     let cdpWalletAddress: string | null = null
@@ -189,6 +216,9 @@ export async function POST(request: NextRequest) {
       if (!isCdpConfigured()) {
         return NextResponse.json({ error: 'CDP wallet integration is not yet configured on this server' }, { status: 501 })
       }
+      if (!checkCdpRateLimit()) {
+        return NextResponse.json({ error: 'CDP wallet creation rate limit exceeded. Try again later or register without CDP.' }, { status: 429 })
+      }
       try {
         const cdpWallet = await createCdpWallet()
         cdpWalletId = cdpWallet.walletId
@@ -230,6 +260,9 @@ export async function POST(request: NextRequest) {
       ? skills.filter((s): s is string => typeof s === 'string').slice(0, 20).map(s => s.slice(0, 50))
       : null
 
+    // Resolve wallet provider: explicit value > inferred from credentials
+    const resolvedWalletProvider = wallet_provider || (validatedBankrApiKey ? 'bankr' : (wallet_address ? 'custom' : 'oracle'))
+
     // Create the agent (external/BYOB agent)
     const { data: agent, error } = await supabaseAdmin
       .from('agents')
@@ -244,7 +277,7 @@ export async function POST(request: NextRequest) {
         bankr_wallet_address: bankrWalletAddress,
         cdp_wallet_id: cdpWalletId,
         cdp_wallet_address: cdpWalletAddress,
-        wallet_provider: wallet_provider || (validatedBankrApiKey ? 'bankr' : (wallet_address ? 'custom' : 'oracle')),
+        wallet_provider: resolvedWalletProvider,
         webhook_url: validatedWebhookUrl,
         webhook_enabled: validatedWebhookUrl ? true : false,
         xmtp_private_key_encrypted: xmtpPrivateKeyEncrypted,
@@ -259,8 +292,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('[Register] Failed to create agent:', error)
+      // Check for unique constraint violation (duplicate wallet)
+      if (error.code === '23505') {
+        return NextResponse.json(
+          { error: 'An agent with this wallet address already exists' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
-        { error: 'Failed to register agent', details: error.message },
+        { error: 'Failed to register agent' },
         { status: 500 }
       )
     }
@@ -324,7 +364,7 @@ export async function POST(request: NextRequest) {
         bankr_wallet_address: agent.bankr_wallet_address,
         cdp_wallet_id: cdpWalletId,
         cdp_wallet_address: cdpWalletAddress,
-        wallet_provider: wallet_provider || 'oracle',
+        wallet_provider: resolvedWalletProvider,
         xmtp_address: agent.xmtp_address,
         xmtp_enabled: agent.xmtp_enabled,
         created_at: agent.created_at,
@@ -341,7 +381,7 @@ export async function POST(request: NextRequest) {
         claim_url_template: 'https://clawlancer.ai/api/listings/{id}/claim',
         deliver_url_template: 'https://clawlancer.ai/api/transactions/{id}/deliver',
         notifications_url: 'https://clawlancer.ai/api/notifications',
-        auth_header: `X-Agent-Key: ${apiKey}`,
+        auth_header: `Authorization: Bearer ${apiKey}`,
         min_score_threshold: 80,
         instructions: [
           '1. Every 2 minutes: GET the poll_url with your auth header',

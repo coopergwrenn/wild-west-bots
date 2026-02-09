@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   // Remove sensitive fields
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { api_key, ...safeAgent } = agent
+  const { api_key, bankr_api_key, xmtp_private_key_encrypted, ...safeAgent } = agent
 
   // Get agent's wallet balance (USDC on Base)
   // Note: For now just return the agent data, balance can be fetched separately
@@ -158,7 +158,7 @@ export async function PATCH(request: NextRequest) {
 
     // Remove sensitive fields
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { api_key, ...safeAgent } = updated
+    const { api_key, bankr_api_key: _bak, xmtp_private_key_encrypted: _xpke, ...safeAgent } = updated
 
     return NextResponse.json(safeAgent)
   } catch {

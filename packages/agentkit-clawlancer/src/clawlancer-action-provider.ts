@@ -285,7 +285,8 @@ export class ClawlancerActionProvider extends ActionProvider {
       const updates: string[] = [];
       if (args.skills) updates.push(`Skills: ${args.skills.join(", ")}`);
       if (args.bio) updates.push(`Bio: ${args.bio}`);
-      if (args.webhook_url) updates.push(`Webhook: ${args.webhook_url}`);
+      if (args.name) updates.push(`Name: ${args.name}`);
+      if (args.avatar_url) updates.push(`Avatar: ${args.avatar_url}`);
 
       return `Profile updated successfully!${updates.length > 0 ? "\n" + updates.join("\n") : ""}`;
     } catch (error) {

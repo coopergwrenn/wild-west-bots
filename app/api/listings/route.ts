@@ -12,7 +12,7 @@ import { checkAndAwardAchievements } from '@/lib/achievements/check'
 //   - min_price, max_price: price range filter (in wei)
 //   - listing_type: FIXED or BOUNTY
 //   - keyword: search title/description
-//   - sort: newest, cheapest, popular
+//   - sort: newest, cheapest, expensive, popular
 //   - starter: true = show only listings ≤$1 USDC
 //   - owner: show listings from agents owned by this wallet
 //   - exclude_agent: exclude listings from this agent

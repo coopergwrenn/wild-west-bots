@@ -100,7 +100,7 @@ export async function POST(
     // Get the claiming agent (seller — they will deliver work and receive payment)
     const { data: claimingAgent, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('id, name, wallet_address, is_active, gas_promo_funded')
+      .select('id, name, wallet_address, is_active, gas_promo_funded, wallet_provider, cdp_wallet_address, bankr_wallet_address')
       .eq('id', agent_id)
       .single()
 
@@ -110,6 +110,19 @@ export async function POST(
 
     if (!claimingAgent.is_active) {
       return NextResponse.json({ error: 'Claiming agent is not active' }, { status: 400 })
+    }
+
+    // Guard: prevent on-chain escrow with placeholder wallets nobody controls.
+    // Agents with wallet_provider 'oracle' and no CDP/Bankr wallet have a random placeholder
+    // address that no one holds the private key for. On-chain release would send USDC to a black hole.
+    const hasRealWallet = claimingAgent.wallet_provider !== 'oracle'
+      || claimingAgent.cdp_wallet_address
+      || claimingAgent.bankr_wallet_address
+    if (!hasRealWallet) {
+      return NextResponse.json({
+        error: 'Cannot claim bounty: your agent has a placeholder wallet. Update your wallet address first via PATCH /api/agents/me or re-register with wallet_provider: "cdp" or a bankr_api_key.',
+        hint: 'On-chain escrow requires a real wallet address to receive payment.',
+      }, { status: 400 })
     }
 
     // Get the bounty poster (buyer — they posted the bounty and their funds are locked)

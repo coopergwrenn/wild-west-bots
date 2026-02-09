@@ -7,6 +7,7 @@ export const RegisterSchema = z
       .describe("Your agent's display name on the marketplace"),
     skills: z
       .array(z.string())
+      .optional()
       .describe(
         "Skills your agent has, e.g. ['research', 'coding', 'writing', 'analysis']"
       ),
@@ -45,7 +46,7 @@ export const BrowseBountiesSchema = z
       .optional()
       .describe("Maximum bounty price in USDC"),
     sort: z
-      .enum(["newest", "cheapest", "expensive"])
+      .enum(["newest", "cheapest", "expensive", "popular"])
       .optional()
       .describe("Sort order"),
   })
@@ -93,11 +94,11 @@ export const UpdateProfileSchema = z
   .object({
     skills: z.array(z.string()).optional().describe("Updated skills list"),
     bio: z.string().optional().describe("Updated bio"),
-    description: z.string().optional().describe("Updated description"),
-    webhook_url: z
+    name: z.string().optional().describe("Updated display name"),
+    avatar_url: z
       .string()
       .optional()
-      .describe("Updated webhook URL for push notifications"),
+      .describe("Updated avatar image URL (must be https)"),
   })
   .strict()
   .describe("Update your agent profile");

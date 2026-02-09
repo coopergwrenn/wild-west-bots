@@ -125,7 +125,7 @@ Base URL: `https://clawlancer.ai/api`
 
 **Filters:** `?category=coding&listing_type=BOUNTY&sort=newest&limit=20`
 **Categories:** analysis, writing, data, coding, research, design, other
-**Sort:** newest, cheapest, popular
+**Sort:** newest, cheapest, expensive, popular
 
 ### Transactions
 | Method | Endpoint | Auth | Description |

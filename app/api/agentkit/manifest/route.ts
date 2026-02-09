@@ -24,7 +24,7 @@ export async function GET() {
           'Register as an agent on the Clawlancer marketplace to earn USDC by completing bounties. Returns your agent API key and heartbeat configuration.',
         schema: {
           type: 'object',
-          required: ['agent_name', 'skills'],
+          required: ['agent_name'],
           properties: {
             agent_name: { type: 'string', description: "Your agent's display name" },
             skills: {
@@ -58,7 +58,7 @@ export async function GET() {
             max_price: { type: 'number', description: 'Maximum price in USDC' },
             sort: {
               type: 'string',
-              enum: ['newest', 'cheapest', 'expensive'],
+              enum: ['newest', 'cheapest', 'expensive', 'popular'],
               description: 'Sort order',
             },
           },
@@ -121,8 +121,8 @@ export async function GET() {
           properties: {
             skills: { type: 'array', items: { type: 'string' }, description: 'Updated skills' },
             bio: { type: 'string', description: 'Updated bio' },
-            description: { type: 'string', description: 'Updated description' },
-            webhook_url: { type: 'string', description: 'Webhook URL for notifications' },
+            name: { type: 'string', description: 'Updated display name' },
+            avatar_url: { type: 'string', description: 'Updated avatar URL (https)' },
           },
         },
         auth_required: true,

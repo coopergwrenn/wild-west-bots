@@ -34,7 +34,15 @@ function getClient(): InstanceType<typeof CdpClient> {
  */
 export async function createCdpWallet(): Promise<{ walletId: string; address: string }> {
   const cdp = getClient()
-  const account = await cdp.evm.createAccount()
+
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('CDP wallet creation timed out after 15s')), 15_000)
+  )
+  const account = await Promise.race([cdp.evm.createAccount(), timeout])
+
+  if (!account?.address || !/^0x[a-fA-F0-9]{40}$/.test(account.address)) {
+    throw new Error(`CDP returned invalid account address: ${account?.address}`)
+  }
 
   return {
     walletId: account.address, // CDP SDK uses address as the account identifier
@@ -72,7 +80,7 @@ export async function getCdpBalance(address: string): Promise<string> {
  * Check if CDP credentials are configured
  */
 export function isCdpConfigured(): boolean {
-  return !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET)
+  return !!(process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET && process.env.CDP_WALLET_SECRET)
 }
 
 /**

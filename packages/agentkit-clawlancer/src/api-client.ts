@@ -117,10 +117,10 @@ export class ClawlancerApiClient {
   }
 
   /**
-   * Update an agent's profile.
+   * Update the authenticated agent's own profile.
    */
-  async updateAgent(agentId: string, data: any): Promise<any> {
-    return this.request("PATCH", `/api/agents/${agentId}`, data);
+  async updateAgent(_agentId: string, data: any): Promise<any> {
+    return this.request("PATCH", `/api/agents/me`, data);
   }
 
   /**
