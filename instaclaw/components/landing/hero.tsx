@@ -77,38 +77,40 @@ export function Hero() {
         )}
       </motion.div>
 
-      {/* Hand-drawn squiggly arrow — left side, pointing at form */}
+      {/* Hand-drawn arrow — starts near "Y" in headline, curves to form */}
       <motion.svg
-        className="hidden xl:block absolute pointer-events-none z-10"
+        className="hidden min-[1380px]:block absolute pointer-events-none z-10"
         style={{
-          left: "calc(50% - 540px)",
-          top: "calc(50% - 82px)",
-          width: "380px",
-          height: "340px",
+          left: "calc(50% - 500px)",
+          top: "calc(50% - 170px)",
+          width: "360px",
+          height: "440px",
         }}
-        viewBox="0 0 300 220"
+        viewBox="0 0 280 320"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden="true"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        animate={{ opacity: 0.85 }}
         transition={{ delay: 1.6, duration: 0.3 }}
       >
+        {/* Bold Sharpie stroke — starts near headline, loops left, sweeps to form */}
         <motion.path
-          d="M28,16 C16,8 4,22 14,36 C24,50 44,40 38,58 C32,76 12,76 24,94 C36,112 56,102 52,122 C48,142 62,150 86,152 C110,154 170,148 232,150"
+          d="M178,18 C160,22 120,40 60,80 C20,108 16,142 40,178 C64,214 120,230 200,238"
           stroke="var(--accent)"
-          strokeWidth="2.5"
+          strokeWidth="3.5"
           strokeLinecap="round"
+          strokeLinejoin="round"
           fill="none"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: 1 }}
           transition={{ delay: 1.6, duration: 1.4, ease: "easeOut" }}
         />
-        {/* Arrowhead pointing right at the form */}
+        {/* Chunky arrowhead */}
         <motion.path
-          d="M222,141 L240,150 L222,159"
+          d="M190,226 L208,240 L192,250"
           stroke="var(--accent)"
-          strokeWidth="2.5"
+          strokeWidth="3.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           fill="none"
