@@ -58,7 +58,7 @@ export function Footer() {
     >
       <div className="max-w-5xl mx-auto">
         {/* Top row: Logo left, Social icons right */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-8 mb-8">
+        <div className="flex flex-row items-center justify-between gap-4 mb-8">
           {/* Logo */}
           <div className="flex items-center gap-1">
             <Image
@@ -100,7 +100,7 @@ export function Footer() {
 
         {/* Bottom row: Copyright + links */}
         <div
-          className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t"
+          className="flex flex-col items-center gap-3 pt-6 border-t"
           style={{ borderColor: "var(--border)" }}
         >
           <p className="text-xs" style={{ color: "var(--muted)" }}>
