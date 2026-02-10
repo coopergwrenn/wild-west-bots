@@ -63,7 +63,7 @@ export function TogglePill({
         style={{
           ...sliderStyle,
           background: '#c9a882',
-          transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), width 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+          transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform, width',
         }}
       />
