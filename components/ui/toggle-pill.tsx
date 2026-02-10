@@ -62,10 +62,16 @@ export function TogglePill({
     >
       {/* Sliding pill indicator */}
       <div
-        className="absolute top-1 bottom-1 rounded-full shadow-md"
+        className="absolute top-1 bottom-1 rounded-full"
         style={{
           ...sliderStyle,
-          background: '#c9a882',
+          background: 'linear-gradient(-75deg, rgba(201,168,130,0.85), rgba(212,184,150,0.95), rgba(201,168,130,0.85))',
+          boxShadow: `
+            rgba(255,255,255,0.6) 0px -1px 1px 0px inset,
+            rgba(0,0,0,0.15) 0px 1px 2px 0px inset,
+            rgba(0,0,0,0.15) 0px 2px 4px 0px,
+            rgba(255,255,255,0.3) 0px 0px 1px 1px inset
+          `,
           transition: 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
           willChange: 'transform, width',
         }}
