@@ -36,12 +36,14 @@ export interface AgentContext {
     category: string
     price_wei: string
     currency: string
+    seller_agent_id: string | null
     seller_name: string
     seller_transaction_count: number
   }>
   messages: Array<{
     id: string
     content: string
+    from_agent_id: string
     from_agent_name: string
     created_at: string
   }>
@@ -144,21 +146,20 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
   let listingsQuery = supabaseAdmin
     .from('listings')
     .select(`
-      id, title, description, category, price_wei, currency, agent_id,
-      agents!inner(name, transaction_count)
+      id, title, description, category, price_wei, currency, agent_id, user_id,
+      agents(name, transaction_count)
     `)
     .eq('is_active', true)
-    .neq('agent_id', agentId)
     .order('created_at', { ascending: false })
     .limit(20)
 
   const { data: allListings } = await listingsQuery
 
-  // Filter out house bot listings if this agent is a house bot
-  let listings = allListings || []
+  // Filter out this agent's own listings and house bot listings (if house bot)
+  let listings = (allListings || []).filter((l: { agent_id: string | null }) => l.agent_id !== agentId)
   if (agentIsHouseBot && houseBotIds.length > 0) {
-    listings = listings.filter((l: { agent_id: string }) => !houseBotIds.includes(l.agent_id))
-    console.log(`[Agent Runner] House bot ${agent.name}: filtered ${(allListings?.length || 0) - listings.length} house bot listings, ${listings.length} external listings visible`)
+    listings = listings.filter((l: { agent_id: string | null }) => !l.agent_id || !houseBotIds.includes(l.agent_id))
+    console.log(`[Agent Runner] House bot ${agent.name}: filtered ${(allListings?.length || 0) - listings.length} own/house bot listings, ${listings.length} external listings visible`)
   }
 
   // 4. Get recent messages directed at this agent
@@ -167,7 +168,7 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
   const { data: messages } = await supabaseAdmin
     .from('messages')
     .select(`
-      id, content, created_at,
+      id, content, created_at, from_agent_id,
       from_agent:agents!from_agent_id(name)
     `)
     .eq('to_agent_id', agentId)
@@ -213,13 +214,15 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
       category: l.category,
       price_wei: l.price_wei?.toString() || '0',
       currency: l.currency,
-      seller_name: l.agents?.name || 'Unknown',
+      seller_agent_id: l.agent_id || null,
+      seller_name: l.agents?.name || 'Anonymous User',
       seller_transaction_count: l.agents?.transaction_count || 0,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     messages: (messages || []).map((m: any) => ({
       id: m.id,
       content: m.content,
+      from_agent_id: m.from_agent_id,
       from_agent_name: m.from_agent?.name || 'Unknown',
       created_at: m.created_at,
     })),
@@ -312,10 +315,10 @@ USDC: ${context.balance.usdc_formatted}
 
 ## MARKETPLACE LISTINGS (Available to Buy)
 ${context.listings.length === 0 ? 'No listings available.' : context.listings.map((l) => `
-- "${l.title}" by ${l.seller_name} (${l.seller_transaction_count} txns)
+- "${l.title}" by ${l.seller_name}${l.seller_agent_id ? ` (agent_id: ${l.seller_agent_id})` : ''} (${l.seller_transaction_count} txns)
   Price: $${(Number(l.price_wei) / 1e6).toFixed(2)} USDC
   Category: ${l.category}
-  ID: ${l.id}
+  Listing ID: ${l.id}
   Description: ${l.description.slice(0, 100)}...
 `).join('')}
 
@@ -327,7 +330,7 @@ ${context.my_listings.length === 0 ? 'You have no listings.' : context.my_listin
 
 ## MESSAGES TO YOU
 ${context.messages.length === 0 ? 'No recent messages.' : context.messages.map((m) => `
-- From ${m.from_agent_name}: "${m.content.slice(0, 200)}"
+- From ${m.from_agent_name} (agent_id: ${m.from_agent_id}): "${m.content.slice(0, 200)}"
 `).join('')}
 
 ## ACTIVE ESCROWS
@@ -382,7 +385,7 @@ You must respond with EXACTLY ONE action in JSON format. Choose from:
 
 2. Send a PUBLIC message to a specific agent (appears in feed - great for engagement!):
    {"type": "send_message", "to_agent_id": "uuid-of-recipient", "content": "Your public reply or shoutout", "is_public": true}
-   NOTE: You MUST specify a to_agent_id. Pick an agent from the marketplace or escrows to interact with.
+   CRITICAL: to_agent_id MUST be a real UUID from the agent_id fields shown above (in listings or messages). Do NOT use agent names or make up IDs.
    Examples: Reply to a listing seller, congratulate someone on a deal, ask a specific agent about their service.
 
 3. Create a new listing (offer a service or post a bounty):
