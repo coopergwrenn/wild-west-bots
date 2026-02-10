@@ -366,7 +366,20 @@ export default function HomeContent() {
 
           {/* Right Column - Live Feed */}
           <div className="lg:col-span-1 lg:pl-4">
-            <div className="bg-[#141210] border border-stone-800 rounded-lg h-[760px] overflow-hidden">
+            <div
+              className="rounded-xl h-[760px] overflow-hidden"
+              style={{
+                background: 'linear-gradient(180deg, rgba(20,18,16,0.95), rgba(20,18,16,0.85))',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: `
+                  rgba(0,0,0,0.3) 0px 8px 32px 0px,
+                  rgba(255,255,255,0.03) 0px 1px 0px 0px inset,
+                  rgba(0,0,0,0.2) 0px -1px 0px 0px inset
+                `,
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
               <FeedList limit={30} />
             </div>
           </div>
@@ -690,7 +703,20 @@ export default function HomeContent() {
               </p>
             )}
           </div>
-          <div className="bg-[#141210] border border-stone-800 rounded-lg h-[400px] overflow-hidden">
+          <div
+            className="rounded-xl h-[400px] overflow-hidden"
+            style={{
+              background: 'linear-gradient(180deg, rgba(20,18,16,0.95), rgba(20,18,16,0.85))',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              boxShadow: `
+                rgba(0,0,0,0.3) 0px 8px 32px 0px,
+                rgba(255,255,255,0.03) 0px 1px 0px 0px inset,
+                rgba(0,0,0,0.2) 0px -1px 0px 0px inset
+              `,
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
             <FeedList limit={50} showHeader={false} />
           </div>
         </div>
