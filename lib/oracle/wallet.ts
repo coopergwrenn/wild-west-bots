@@ -10,8 +10,8 @@
 import { createPublicClient, http, formatUnits, parseUnits } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 
-const MIN_BALANCE_WARNING = parseUnits('0.1', 18); // 0.1 ETH
-const MIN_BALANCE_CRITICAL = parseUnits('0.05', 18); // 0.05 ETH
+const MIN_BALANCE_WARNING = parseUnits('0.001', 18); // 0.001 ETH (~$2)
+const MIN_BALANCE_CRITICAL = parseUnits('0.0005', 18); // 0.0005 ETH (~$1)
 
 const isTestnet = process.env.NEXT_PUBLIC_CHAIN === 'sepolia';
 const CHAIN = isTestnet ? baseSepolia : base;
