@@ -67,18 +67,18 @@ export function NavBar({ activePath }: NavBarProps) {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/marketplace?post=true"
-            className="px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
-            style={greenGlassStyle}
-          >
-            Post Bounty
-          </Link>
           {!ready ? (
             <span className="text-sm font-mono text-stone-500">...</span>
           ) : authenticated ? (
             <>
               <NotificationBell />
+              <Link
+                href="/marketplace?post=true"
+                className="px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
+                style={greenGlassStyle}
+              >
+                Post Bounty
+              </Link>
               <Link
                 href="/dashboard"
                 className="px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -88,18 +88,28 @@ export function NavBar({ activePath }: NavBarProps) {
               </Link>
             </>
           ) : (
-            <button
-              onClick={login}
-              className="px-4 py-2 font-mono text-sm rounded-lg cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={glassStyle}
-            >
-              Sign In
-            </button>
+            <>
+              <Link
+                href="/marketplace?post=true"
+                className="px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
+                style={greenGlassStyle}
+              >
+                Post Bounty
+              </Link>
+              <button
+                onClick={login}
+                className="px-4 py-2 font-mono text-sm rounded-lg cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                style={glassStyle}
+              >
+                Sign In
+              </button>
+            </>
           )}
         </nav>
 
         {/* Mobile: action button + hamburger */}
         <div className="flex md:hidden items-center gap-2">
+          {ready && authenticated && <NotificationBell />}
           <Link
             href="/marketplace?post=true"
             className="px-3 py-1.5 font-mono text-xs rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
@@ -107,7 +117,6 @@ export function NavBar({ activePath }: NavBarProps) {
           >
             Post Bounty
           </Link>
-          {ready && authenticated && <NotificationBell />}
           {ready && !authenticated && (
             <button
               onClick={login}
