@@ -77,6 +77,7 @@ export function NavBar({ activePath }: NavBarProps) {
                 className="flex items-center gap-1.5 px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
                 style={greenGlassStyle}
               >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 5v14m-7-7h14" /></svg>
                 Post Bounty
               </Link>
               <Link
@@ -94,6 +95,7 @@ export function NavBar({ activePath }: NavBarProps) {
                 className="flex items-center gap-1.5 px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
                 style={greenGlassStyle}
               >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 5v14m-7-7h14" /></svg>
                 Post Bounty
               </Link>
               <button
