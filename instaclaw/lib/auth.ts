@@ -26,6 +26,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const cookieStore = await cookies();
       const inviteCode = cookieStore.get("instaclaw_invite_code")?.value;
 
+      // NEW users MUST have a valid invite code
+      if (!inviteCode) {
+        logger.error("Sign-up rejected: no invite code", { email: user.email, route: "auth/signIn" });
+        return false;
+      }
+
+      const normalizedCode = decodeURIComponent(inviteCode).trim().toUpperCase();
+      const { data: invite } = await supabase
+        .from("instaclaw_invites")
+        .select("id, max_uses, times_used, expires_at, is_active")
+        .eq("code", normalizedCode)
+        .single();
+
+      if (
+        !invite ||
+        !invite.is_active ||
+        invite.times_used >= invite.max_uses ||
+        (invite.expires_at && new Date(invite.expires_at) < new Date())
+      ) {
+        logger.error("Sign-up rejected: invalid invite code", { email: user.email, code: normalizedCode, route: "auth/signIn" });
+        return false;
+      }
+
       // Create the user row
       const { error } = await supabase.from("instaclaw_users").insert({
         email: user.email?.toLowerCase(),
