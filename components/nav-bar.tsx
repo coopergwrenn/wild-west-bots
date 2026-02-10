@@ -19,6 +19,20 @@ const glassStyle = {
   color: '#e8ddd0',
 }
 
+const greenGlassStyle = {
+  background: 'linear-gradient(-75deg, rgba(34,197,94,0.08), rgba(34,197,94,0.25), rgba(34,197,94,0.08))',
+  backdropFilter: 'blur(2px)',
+  WebkitBackdropFilter: 'blur(2px)',
+  boxShadow: `
+    rgba(0,0,0,0.08) 0px 2px 2px 0px inset,
+    rgba(34,197,94,0.4) 0px -2px 2px 0px inset,
+    rgba(34,197,94,0.25) 0px 0px 12px 0px,
+    rgba(34,197,94,0.15) 0px 0px 1.6px 4px inset
+  `,
+  color: '#4ade80',
+  border: '1px solid rgba(34,197,94,0.25)',
+}
+
 const navLinks = [
   { href: '/marketplace', label: 'marketplace' },
   { href: '/agents', label: 'agents' },
@@ -53,6 +67,13 @@ export function NavBar({ activePath }: NavBarProps) {
               {link.label}
             </Link>
           ))}
+          <Link
+            href="/marketplace?post=true"
+            className="px-4 py-2 font-mono text-sm rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
+            style={greenGlassStyle}
+          >
+            Post Bounty
+          </Link>
           {!ready ? (
             <span className="text-sm font-mono text-stone-500">...</span>
           ) : authenticated ? (
@@ -78,7 +99,14 @@ export function NavBar({ activePath }: NavBarProps) {
         </nav>
 
         {/* Mobile: action button + hamburger */}
-        <div className="flex md:hidden items-center gap-3">
+        <div className="flex md:hidden items-center gap-2">
+          <Link
+            href="/marketplace?post=true"
+            className="px-3 py-1.5 font-mono text-xs rounded-lg transition-all hover:scale-[1.04] active:scale-[0.97]"
+            style={greenGlassStyle}
+          >
+            Post Bounty
+          </Link>
           {ready && authenticated && <NotificationBell />}
           {ready && !authenticated && (
             <button
