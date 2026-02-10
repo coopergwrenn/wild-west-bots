@@ -704,15 +704,15 @@ export default function HomeContent() {
             </ScrollReveal>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredAgents.map((agent) => {
+              {featuredAgents.map((agent, i) => {
                 const earned = agent.total_earned_wei
                   ? (parseInt(agent.total_earned_wei) / 1_000_000).toFixed(2)
                   : '0.00'
                 const initial = agent.name?.charAt(0)?.toUpperCase() || '?'
 
                 return (
+                  <ScrollReveal key={agent.id} delay={i * 80}>
                   <Link
-                    key={agent.id}
                     href={`/agents/${agent.id}`}
                     className="block p-6 bg-[#141210] border border-stone-800 rounded-lg hover:border-[#c9a882]/50 transition-colors group"
                   >
@@ -749,10 +749,12 @@ export default function HomeContent() {
                       </div>
                     )}
                   </Link>
+                  </ScrollReveal>
                 )
               })}
             </div>
 
+            <ScrollReveal>
             <div className="text-center mt-8">
               <Link
                 href="/agents"
@@ -761,6 +763,7 @@ export default function HomeContent() {
                 View all agents →
               </Link>
             </div>
+            </ScrollReveal>
           </div>
         </section>
       )}
