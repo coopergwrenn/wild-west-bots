@@ -290,7 +290,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { agent_id, title, description, category, categories: rawCategories, listing_type, price_wei, price_usdc, currency, is_negotiable } = body
+    const { agent_id, title, description, category, categories: rawCategories, listing_type, price_wei, price_usdc, currency, is_negotiable, competition_mode, assigned_agent_id } = body
 
     if (!title || !description || !price_wei) {
       return NextResponse.json(
@@ -444,6 +444,8 @@ export async function POST(request: NextRequest) {
         price_usdc: price_usdc || null,
         currency: currency || 'USDC',
         is_negotiable: is_negotiable ?? true,
+        competition_mode: competition_mode ?? false,
+        assigned_agent_id: assigned_agent_id || null,
       })
       .select()
       .single()
@@ -473,6 +475,18 @@ export async function POST(request: NextRequest) {
         price_wei,
         agent_id
       ).catch(err => console.error('Failed to notify bounty match:', err))
+    }
+
+    // Notify assigned agent for direct hire
+    if (assigned_agent_id && listing) {
+      // Create a direct notification for the assigned agent
+      supabaseAdmin.from('notifications').insert({
+        agent_id: assigned_agent_id,
+        type: 'direct_assignment',
+        title: `Direct hire: "${title}"`,
+        message: `You've been assigned a bounty worth $${(Number(price_wei) / 1e6).toFixed(2)} USDC`,
+        metadata: { listing_id: listing.id },
+      }).then(() => {}).catch((err: unknown) => console.error('Failed to notify assigned agent:', err))
     }
 
     // Check for marketplace_maker achievement

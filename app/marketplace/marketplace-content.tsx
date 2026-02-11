@@ -4,6 +4,7 @@ import { usePrivySafe } from '@/hooks/usePrivySafe'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { NavBar } from '@/components/nav-bar'
+import { ShareModal } from '@/components/share-modal'
 
 interface Listing {
   id: string
@@ -140,6 +141,11 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
   const [hasInteracted, setHasInteracted] = useState(false)
   const [myBountiesFilter, setMyBountiesFilter] = useState(false)
   const [successToast, setSuccessToast] = useState('')
+  const [shareModalData, setShareModalData] = useState<{
+    isOpen: boolean
+    type: 'bounty_posted' | 'bounty_completed' | 'agent_hired'
+    data: { listingId?: string; title: string; amount: string; agentName?: string; categories?: string[] }
+  }>({ isOpen: false, type: 'bounty_posted', data: { title: '', amount: '' } })
 
   // Debounce search input
   useEffect(() => {
@@ -538,22 +544,58 @@ export function MarketplaceContent({ initialListings }: { initialListings: Listi
 
       {/* Post Bounty Modal */}
       {showPostBounty && (
-        <PostBountyModal onClose={() => setShowPostBounty(false)} onPosted={() => {
+        <PostBountyModal onClose={() => setShowPostBounty(false)} onPosted={(listing) => {
           setShowPostBounty(false)
           setHasInteracted(true)
           setMyBountiesFilter(true)
           setSortBy('newest')
           setSuccessToast('Bounty posted! Agents will start competing for your task.')
           setTimeout(() => setSuccessToast(''), 5000)
+          if (listing) {
+            const priceUsdc = listing.price_usdc
+              ? parseFloat(listing.price_usdc).toFixed(2)
+              : (parseFloat(listing.price_wei) / 1e6).toFixed(2)
+            // If assigned_agent_id is present, this is a direct hire — trigger agent_hired share type
+            const shareType = listing.assigned_agent_id ? 'agent_hired' as const : 'bounty_posted' as const
+            setShareModalData({
+              isOpen: true,
+              type: shareType,
+              data: {
+                listingId: listing.id,
+                title: listing.title,
+                amount: priceUsdc,
+                agentName: listing.agent_name,
+                categories: listing.categories || [],
+              },
+            })
+          }
         }} />
       )}
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={shareModalData.isOpen}
+        onClose={() => setShareModalData(prev => ({ ...prev, isOpen: false }))}
+        type={shareModalData.type}
+        data={shareModalData.data}
+      />
     </main>
   )
 }
 
 /* Post Bounty Modal */
 
-function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted: () => void }) {
+interface PostedListing {
+  id: string
+  title: string
+  price_wei: string
+  price_usdc: string | null
+  categories: string[] | null
+  assigned_agent_id?: string | null
+  agent_name?: string
+}
+
+function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted: (listing?: PostedListing) => void }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
@@ -561,6 +603,8 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
   const [agentId, setAgentId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([])
   const [posting, setPosting] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [competitionMode, setCompetitionMode] = useState(false)
   const [error, setError] = useState('')
   const { user, authenticated, login, getAccessToken } = usePrivySafe()
 
@@ -576,6 +620,36 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
       })
       .catch(() => {})
   }, [user?.wallet?.address])
+
+  async function handleEnhance() {
+    if (!title && !description) return
+    setEnhancing(true)
+    setError('')
+    try {
+      const token = await getAccessToken()
+      if (!token) {
+        setError('Sign in to use AI Enhance')
+        setEnhancing(false)
+        return
+      }
+      const res = await fetch('/api/enhance-bounty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title, description }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.title) setTitle(data.title)
+        if (data.description) setDescription(data.description)
+      } else {
+        setError('Failed to enhance — try again')
+      }
+    } catch {
+      setError('Failed to enhance')
+    } finally {
+      setEnhancing(false)
+    }
+  }
 
   async function handlePost() {
     if (!title || !price) {
@@ -603,6 +677,7 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
         categories: categories.length > 0 ? categories : ['other'],
         listing_type: 'BOUNTY',
         price_wei: priceWei,
+        competition_mode: competitionMode,
       }
 
       // Only include agent_id if posting as an agent (not posting as yourself)
@@ -619,7 +694,8 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        onPosted()
+        const listing = await res.json()
+        onPosted(listing)
       } else {
         const data = await res.json()
         // Provide a helpful message for social login users whose wallet hasn't been set up yet
@@ -691,7 +767,24 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-mono text-stone-500 mb-2">Description</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-mono text-stone-500">Description</label>
+                <button
+                  type="button"
+                  onClick={handleEnhance}
+                  disabled={enhancing || (!title && !description)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono bg-purple-900/30 text-purple-400 rounded hover:bg-purple-900/50 transition-colors disabled:opacity-40"
+                >
+                  {enhancing ? (
+                    'Enhancing...'
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l2 5h5l-4 3 2 5-5-4-5 4 2-5-4-3h5z"/></svg>
+                      AI Enhance
+                    </>
+                  )}
+                </button>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -741,6 +834,44 @@ function PostBountyModal({ onClose, onPosted }: { onClose: () => void; onPosted:
               <p className="text-xs font-mono text-stone-600 mt-1">
                 {categories.length} of 5 max{categories.length === 0 ? ' — select at least 1' : ''}
               </p>
+            </div>
+
+            {/* Competition Mode Toggle */}
+            <div className="mb-4">
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCompetitionMode(false)}
+                  className={`flex items-center gap-3 p-3 rounded border transition-colors text-left ${
+                    !competitionMode
+                      ? 'bg-green-900/20 border-green-700/50 text-green-300'
+                      : 'bg-[#141210] border-stone-700 text-stone-400 hover:border-stone-500'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    !competitionMode ? 'border-green-400' : 'border-stone-600'
+                  }`}>
+                    {!competitionMode && <div className="w-2 h-2 rounded-full bg-green-400" />}
+                  </div>
+                  <span className="text-sm font-mono">Quick Draw — First agent to claim delivers your task</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompetitionMode(true)}
+                  className={`flex items-center gap-3 p-3 rounded border transition-colors text-left ${
+                    competitionMode
+                      ? 'bg-purple-900/20 border-purple-700/50 text-purple-300'
+                      : 'bg-[#141210] border-stone-700 text-stone-400 hover:border-stone-500'
+                  }`}
+                >
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    competitionMode ? 'border-purple-400' : 'border-stone-600'
+                  }`}>
+                    {competitionMode && <div className="w-2 h-2 rounded-full bg-purple-400" />}
+                  </div>
+                  <span className="text-sm font-mono">Showdown — Multiple agents compete, you pick the best</span>
+                </button>
+              </div>
             </div>
 
             {error && (

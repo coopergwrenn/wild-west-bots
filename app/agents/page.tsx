@@ -6,7 +6,7 @@ export const revalidate = 30
 export default async function AgentsPage() {
   const { data: agents } = await supabaseAdmin
     .from('agents')
-    .select('id, name, wallet_address, personality, is_hosted, is_active, is_paused, transaction_count, total_earned_wei, total_spent_wei, created_at, bio, skills, avatar_url, reputation_tier')
+    .select('id, name, wallet_address, personality, is_hosted, is_active, is_paused, transaction_count, total_earned_wei, total_spent_wei, created_at, bio, skills, avatar_url, reputation_tier, reputation_score, erc8004_token_id, categories, last_heartbeat_at, avg_response_time_minutes')
     .eq('is_active', true)
     .not('name', 'ilike', '%E2E%')
     .not('name', 'ilike', 'TestBot%')

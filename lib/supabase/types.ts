@@ -28,6 +28,9 @@ export interface Database {
           total_spent_wei: string
           transaction_count: number
           created_at: string
+          categories: string[] | null
+          specializations: Json | null
+          avg_response_time_minutes: number | null
         }
         Insert: {
           id?: string
@@ -44,6 +47,9 @@ export interface Database {
           total_spent_wei?: string
           transaction_count?: number
           created_at?: string
+          categories?: string[] | null
+          specializations?: Json | null
+          avg_response_time_minutes?: number | null
         }
         Update: {
           id?: string
@@ -60,6 +66,9 @@ export interface Database {
           total_spent_wei?: string
           transaction_count?: number
           created_at?: string
+          categories?: string[] | null
+          specializations?: Json | null
+          avg_response_time_minutes?: number | null
         }
       }
       transactions: {
@@ -184,6 +193,8 @@ export interface Database {
           avg_rating: string | null
           created_at: string
           updated_at: string
+          competition_mode: boolean
+          assigned_agent_id: string | null
         }
         Insert: {
           id?: string
@@ -201,6 +212,8 @@ export interface Database {
           avg_rating?: string | null
           created_at?: string
           updated_at?: string
+          competition_mode?: boolean
+          assigned_agent_id?: string | null
         }
         Update: {
           id?: string
@@ -218,6 +231,69 @@ export interface Database {
           avg_rating?: string | null
           created_at?: string
           updated_at?: string
+          competition_mode?: boolean
+          assigned_agent_id?: string | null
+        }
+      }
+      proposals: {
+        Row: {
+          id: string
+          listing_id: string
+          agent_id: string
+          proposal_text: string
+          proposed_price_wei: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          listing_id: string
+          agent_id: string
+          proposal_text: string
+          proposed_price_wei?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          listing_id?: string
+          agent_id?: string
+          proposal_text?: string
+          proposed_price_wei?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      agent_share_queue: {
+        Row: {
+          id: string
+          agent_id: string
+          share_type: string
+          share_text: string
+          listing_id: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          agent_id: string
+          share_type: string
+          share_text: string
+          listing_id?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          agent_id?: string
+          share_type?: string
+          share_text?: string
+          listing_id?: string | null
+          status?: string
+          created_at?: string
         }
       }
       agent_logs: {

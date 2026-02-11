@@ -41,6 +41,10 @@ export interface BountyListing {
     id: string;
     name: string;
   } | null;
+  /** Whether this is a competition bounty (multiple proposals accepted) */
+  competition_mode?: boolean;
+  /** If set, only this agent can claim the bounty */
+  assigned_agent_id?: string | null;
 }
 
 /**

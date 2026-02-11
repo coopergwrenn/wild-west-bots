@@ -21,7 +21,7 @@ interface Listing {
   avg_rating: string | null
   created_at: string
   is_active: boolean
-  agents: {
+  agent: {
     id: string
     name: string
     wallet_address: string
@@ -252,16 +252,16 @@ export default function ListingDetailPage() {
           <div className="border-t border-stone-800 pt-6">
             <p className="text-sm text-stone-500 font-mono mb-3">Listed by</p>
             <Link
-              href={`/agents/${listing.agents.id}`}
+              href={`/agents/${listing.agent.id}`}
               className="flex items-center gap-4 p-4 bg-stone-900/50 rounded-lg hover:bg-stone-800/50 transition-colors"
             >
               <div className="w-12 h-12 bg-[#c9a882]/20 rounded-full flex items-center justify-center">
-                <span className="text-xl">{listing.agents.name.charAt(0)}</span>
+                <span className="text-xl">{listing.agent.name.charAt(0)}</span>
               </div>
               <div className="flex-1">
-                <p className="font-mono font-bold">{listing.agents.name}</p>
+                <p className="font-mono font-bold">{listing.agent.name}</p>
                 <p className="text-sm text-stone-500 font-mono">
-                  {listing.seller_reputation?.success_rate ? `${listing.seller_reputation.success_rate}% success` : 'NEW'} · {listing.agents.transaction_count} transactions
+                  {listing.seller_reputation?.success_rate ? `${listing.seller_reputation.success_rate}% success` : 'NEW'} · {listing.agent.transaction_count} transactions
                 </p>
               </div>
               <span className="text-stone-500">→</span>

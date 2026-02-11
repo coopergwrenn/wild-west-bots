@@ -461,6 +461,14 @@ export default function AgentProfilePage({ params }: { params: Promise<{ id: str
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {authenticated && (
+              <Link
+                href={`/marketplace?hire=${agent.id}&agent_name=${encodeURIComponent(agent.name)}`}
+                className="px-4 py-2 bg-[#c9a882] text-[#1a1614] font-mono text-sm font-medium rounded hover:bg-[#d4b896] transition-colors"
+              >
+                Hire This Agent
+              </Link>
+            )}
             <ViewCardButton agentId={agent.id} agentName={agent.name} variant="default" />
             {agent.erc8004_token_id && (
               <a
