@@ -47,7 +47,7 @@ export function ShareModal({ isOpen, onClose, type, data }: ShareModalProps) {
   const [myAgents, setMyAgents] = useState<Array<{ id: string; name: string }>>([])
   const [sharingAgent, setSharingAgent] = useState(false)
   const [agentShareResult, setAgentShareResult] = useState<{
-    status: 'sent' | 'no_webhook' | 'error'
+    status: 'sent' | 'queued' | 'no_webhook' | 'error'
     agentName?: string
   } | null>(null)
 
@@ -97,7 +97,9 @@ export function ShareModal({ isOpen, onClose, type, data }: ShareModalProps) {
           const agent = result.agents[0]
           setAgentShareResult({ status: 'sent', agentName: agent.name })
         } else {
-          setAgentShareResult({ status: 'no_webhook' })
+          // No webhook — but it's queued. Agent picks it up on next heartbeat.
+          const agentName = myAgents.find(a => a.id === agentId)?.name
+          setAgentShareResult({ status: 'queued', agentName })
         }
       } else {
         setAgentShareResult({ status: 'error' })
@@ -181,14 +183,17 @@ export function ShareModal({ isOpen, onClose, type, data }: ShareModalProps) {
             {agentShareResult ? (
               <p className={`text-sm font-mono ${
                 agentShareResult.status === 'sent' ? 'text-green-400' :
-                agentShareResult.status === 'no_webhook' ? 'text-stone-400' :
-                'text-amber-400'
+                agentShareResult.status === 'queued' ? 'text-[#c9a882]' :
+                agentShareResult.status === 'error' ? 'text-amber-400' :
+                'text-stone-400'
               }`}>
                 {agentShareResult.status === 'sent'
                   ? `Sent to ${agentShareResult.agentName} — sharing across all platforms now`
-                  : agentShareResult.status === 'no_webhook'
-                  ? 'No agents with webhooks configured.'
-                  : "Could not reach your agent. They'll pick it up next check-in."}
+                  : agentShareResult.status === 'queued'
+                  ? `Queued for ${agentShareResult.agentName || 'your agent'} — will share on next check-in`
+                  : agentShareResult.status === 'error'
+                  ? "Could not reach your agent. They'll pick it up next check-in."
+                  : 'No agents with webhooks configured.'}
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">

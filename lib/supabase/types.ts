@@ -287,6 +287,11 @@ export interface Database {
           share_text: string
           listing_id: string | null
           status: string
+          platforms: string[] | null
+          expires_at: string
+          completed_at: string | null
+          proof_url: string | null
+          result: Json | null
           created_at: string
         }
         Insert: {
@@ -296,6 +301,11 @@ export interface Database {
           share_text: string
           listing_id?: string | null
           status?: string
+          platforms?: string[] | null
+          expires_at?: string
+          completed_at?: string | null
+          proof_url?: string | null
+          result?: Json | null
           created_at?: string
         }
         Update: {
@@ -305,6 +315,11 @@ export interface Database {
           share_text?: string
           listing_id?: string | null
           status?: string
+          platforms?: string[] | null
+          expires_at?: string
+          completed_at?: string | null
+          proof_url?: string | null
+          result?: Json | null
           created_at?: string
         }
       }

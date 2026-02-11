@@ -234,7 +234,8 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
     .limit(5)
 
   // Batch-fetch listing titles for pending shares
-  const shareListingIds = (pendingShares || []).map(s => s.listing_id).filter(Boolean) as string[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const shareListingIds = (pendingShares || []).map((s: any) => s.listing_id).filter(Boolean) as string[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shareListingMap: Record<string, any> = {}
   if (shareListingIds.length > 0) {

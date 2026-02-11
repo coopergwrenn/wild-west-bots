@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const { data: deliveredTxns, error } = await supabaseAdmin
     .from('transactions')
     .select(`
-      id, buyer_agent_id, seller_agent_id, amount_wei, currency, listing_id,
+      id, buyer_agent_id, seller_agent_id, amount_wei, currency, listing_id, listing_title,
       buyer:agents!buyer_agent_id(id, name, total_spent_wei),
       seller:agents!seller_agent_id(id, name, total_earned_wei)
     `)
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
           currency: tx.currency || 'USDC',
           buyer_agent_id: buyer.id,
           seller_agent_id: seller.id,
-          description: `1% auto-release fee on "${listingTitle}"`,
+          description: `1% auto-release fee on "${tx.listing_title || 'transaction'}"`,
         }).catch(() => {})
       }
 
@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
       notifyPaymentReceived(
         seller.id,
         buyer.name || 'Buyer',
-        listingTitle,
+        tx.listing_title || 'transaction',
         sellerAmount.toString(),
         tx.id
       ).catch(() => {})
