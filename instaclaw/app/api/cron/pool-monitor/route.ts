@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import {
-  createServer,
-  waitForServer,
-  resolveHetznerIds,
   getNextVmNumber,
   formatVmName,
-  getImage,
   getSnapshotUserData,
   HETZNER_DEFAULTS,
 } from "@/lib/hetzner";
+import {
+  getAvailableProvider,
+  getAllProviders,
+} from "@/lib/providers";
+import type { CloudProvider } from "@/lib/providers";
 import { sendAdminAlertEmail } from "@/lib/email";
 import { logger } from "@/lib/logger";
 
@@ -103,50 +104,43 @@ export async function GET(req: NextRequest) {
   );
   const startNum = getNextVmNumber(existingNames);
 
-  let sshKeyId: number;
-  let firewallId: number;
+  // Get available provider
+  let provider: CloudProvider;
   try {
-    const ids = await resolveHetznerIds();
-    sshKeyId = ids.sshKeyId;
-    firewallId = ids.firewallId;
+    provider = getAvailableProvider();
   } catch (err) {
-    logger.error("Failed to resolve Hetzner IDs", { error: String(err), route: "cron/pool-monitor" });
+    logger.error("No cloud provider available", { error: String(err), route: "cron/pool-monitor" });
     return NextResponse.json(
-      { error: "Failed to resolve Hetzner resource IDs" },
+      { error: "No cloud provider configured" },
       { status: 500 }
     );
   }
 
-  const image = getImage();
-  const userData = getSnapshotUserData();
-  const isSnapshot = !!process.env.HETZNER_SNAPSHOT_ID;
+  const isSnapshot =
+    provider.name === "hetzner" && !!process.env.HETZNER_SNAPSHOT_ID;
 
-  const provisioned: { name: string; ip: string }[] = [];
+  const provisioned: { name: string; ip: string; provider: string }[] = [];
+
+  let fallbackAttempted = false;
 
   for (let i = 0; i < toProvision; i++) {
     const vmName = formatVmName(startNum + i);
 
     try {
-      const server = await createServer({
-        name: vmName,
-        image,
-        sshKeyId,
-        firewallId,
-        userData,
-      });
+      const created = await provider.createServer({ name: vmName });
+      const readyServer = await provider.waitForServer(created.providerId);
 
-      const readyServer = await waitForServer(server.id);
-      const ip = readyServer.public_net.ipv4.ip;
-
+      const vmStatus = isSnapshot && provider.name === "hetzner" ? "ready" : "provisioning";
       const { error } = await supabase.from("instaclaw_vms").insert({
-        ip_address: ip,
+        ip_address: readyServer.ip,
         name: vmName,
-        hetzner_server_id: String(server.id),
+        provider_server_id: readyServer.providerId,
+        provider: provider.name,
         ssh_port: 22,
         ssh_user: "openclaw",
-        status: isSnapshot ? "ready" : "provisioning",
-        region: HETZNER_DEFAULTS.region,
-        server_type: HETZNER_DEFAULTS.serverType,
+        status: vmStatus,
+        region: readyServer.region,
+        server_type: readyServer.serverType,
       });
 
       if (error) {
@@ -154,10 +148,26 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      provisioned.push({ name: vmName, ip });
-      logger.info("Created VM", { route: "cron/pool-monitor", vmName, ip });
+      provisioned.push({ name: vmName, ip: readyServer.ip, provider: provider.name });
+      logger.info("Created VM", { route: "cron/pool-monitor", vmName, ip: readyServer.ip, provider: provider.name });
+      fallbackAttempted = false;
     } catch (err) {
-      logger.error("Failed to provision VM", { error: String(err), route: "cron/pool-monitor", vmName });
+      logger.error("Failed to provision VM", { error: String(err), route: "cron/pool-monitor", vmName, provider: provider.name });
+
+      // Try next available provider on failure — but only once per VM
+      const allProviders = getAllProviders();
+      const nextProvider = allProviders.find(
+        (p) => p.name !== provider.name
+      );
+      if (nextProvider && !fallbackAttempted) {
+        logger.info("Trying fallback provider", { route: "cron/pool-monitor", fallback: nextProvider.name });
+        fallbackAttempted = true;
+        provider = nextProvider;
+        i--;
+      } else {
+        // Both providers failed for this VM, move on
+        fallbackAttempted = false;
+      }
     }
   }
 
@@ -166,6 +176,7 @@ export async function GET(req: NextRequest) {
     needed,
     provisioned: provisioned.length,
     vms: provisioned,
+    provider: provider.name,
     mode: isSnapshot ? "snapshot" : "fresh",
     note: isSnapshot
       ? "VMs created from snapshot with cloud-init. Status: ready."

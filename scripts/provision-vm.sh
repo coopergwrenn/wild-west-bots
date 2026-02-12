@@ -407,7 +407,8 @@ SUPABASE_RESPONSE=$(curl -sf -X POST \
   -d "{
     \"ip_address\": \"${SERVER_IP}\",
     \"name\": \"${VM_NAME}\",
-    \"hetzner_server_id\": \"${SERVER_ID}\",
+    \"provider_server_id\": \"${SERVER_ID}\",
+    \"provider\": \"hetzner\",
     \"ssh_port\": 22,
     \"ssh_user\": \"openclaw\",
     \"status\": \"ready\",
