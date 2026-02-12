@@ -38,7 +38,7 @@ export default function Home() {
         <hr className="section-divider" />
         <HowItWorks />
         <hr className="section-divider" />
-        <ScrollReveal text="This sounds impossible, but it's *real.* An AI that works for you _while_ _you_ _sleep._ It remembers everything, handles real tasks on its own, and gets smarter the more you use it. Not a chatbot. A full personal system that never ~stops.~ All yours for *$29* a month. Don't believe us? Try it _free_ for seven days." />
+        <ScrollReveal text="This sounds impossible, but it's *real.* An AI that works for you _while_ _you_ _sleep._ It remembers everything, handles real tasks on its own, and gets smarter the more you use it. Not a chatbot. A full personal system that never ~stops.~ All yours for *$29* a month. Don't believe us? Try it _free_ for three days." />
         <hr className="section-divider" />
         <Comparison />
         <hr className="section-divider" />
