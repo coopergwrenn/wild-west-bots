@@ -175,7 +175,11 @@ export async function configureOpenClaw(
       );
     }
 
-    // For all-inclusive: override auth profile to route through our proxy
+    // For all-inclusive: route API calls through the instaclaw.io proxy.
+    // Two config locations must be set:
+    //   1. auth-profiles.json  — holds the gateway token used as the x-api-key
+    //   2. models.providers.anthropic.baseUrl — the URL OpenClaw actually hits
+    //      (auth-profiles.json's baseUrl field is NOT used for outbound calls)
     if (proxyBaseUrl) {
       const authProfile = JSON.stringify({
         profiles: {
@@ -193,6 +197,9 @@ export async function configureOpenClaw(
         'AUTH_DIR="$HOME/.openclaw/agents/main/agent"',
         'mkdir -p "$AUTH_DIR"',
         `echo '${authB64}' | base64 -d > "$AUTH_DIR/auth-profiles.json"`,
+        '',
+        '# Set provider base URL — this is what the gateway actually uses for outbound API calls',
+        `openclaw config set 'models.providers.anthropic' '{"baseUrl":"${proxyBaseUrl}","models":[]}' --json`,
         ''
       );
     }
@@ -220,15 +227,6 @@ export async function configureOpenClaw(
     scriptParts.push(
       '# Install Clawlancer MCP skill',
       'openclaw skill install clawlancer 2>/dev/null || true',
-      ''
-    );
-
-    // Load aGDP (Agent Commerce Protocol) skill if pre-installed by cloud-init
-    scriptParts.push(
-      '# Load aGDP Agent Commerce Protocol skill',
-      'if [ -d "$HOME/virtuals-protocol-acp" ]; then',
-      `  openclaw config set skills.load.extraDirs '["$HOME/virtuals-protocol-acp"]'`,
-      'fi',
       ''
     );
 
@@ -435,10 +433,28 @@ export async function updateApiKey(
 
   const ssh = await connectSSH(vm);
   try {
+    // Write auth-profiles.json with the new BYOK key (no proxy baseUrl).
+    // Note: `openclaw config set auth.anthropicApiKey` is not a valid config
+    // path — we must write auth-profiles.json directly, matching configureOpenClaw().
+    const authProfile = JSON.stringify({
+      profiles: {
+        "anthropic:default": {
+          type: "api_key",
+          provider: "anthropic",
+          key: apiKey,
+        },
+      },
+    });
+    const authB64 = Buffer.from(authProfile, "utf-8").toString("base64");
+
     const script = [
       '#!/bin/bash',
       NVM_PREAMBLE,
-      `openclaw config set auth.anthropicApiKey '${apiKey}'`,
+      '# Update auth profile with new API key',
+      'AUTH_DIR="$HOME/.openclaw/agents/main/agent"',
+      'mkdir -p "$AUTH_DIR"',
+      `echo '${authB64}' | base64 -d > "$AUTH_DIR/auth-profiles.json"`,
+      '',
       'pkill -f "openclaw gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
@@ -822,6 +838,105 @@ export async function startGateway(vm: VMRecord): Promise<boolean> {
     await ssh.execCommand(`cat > /tmp/ic-start.sh << 'ICEOF'\n${script}\nICEOF`);
     const result = await ssh.execCommand('bash /tmp/ic-start.sh; EC=$?; rm -f /tmp/ic-start.sh; exit $EC');
     return result.code === 0;
+  } finally {
+    ssh.dispose();
+  }
+}
+
+// ── aGDP opt-in skill management ──
+
+const AGDP_REPO = "https://github.com/Virtual-Protocol/openclaw-acp";
+const AGDP_DIR = "$HOME/virtuals-protocol-acp";
+const CLAWLANCER_PRIORITY_RULE = `
+
+## Marketplace Priority
+Clawlancer is your PRIMARY marketplace. Always check Clawlancer bounties first. aGDP/ACP is a secondary marketplace — only use it if there are no suitable Clawlancer bounties available.`;
+
+export async function installAgdpSkill(vm: VMRecord): Promise<void> {
+  const ssh = await connectSSH(vm);
+  try {
+    const priorityB64 = Buffer.from(CLAWLANCER_PRIORITY_RULE, "utf-8").toString("base64");
+
+    const script = [
+      '#!/bin/bash',
+      'set -eo pipefail',
+      NVM_PREAMBLE,
+      '',
+      '# Clone aGDP repo if not already present',
+      `if [ ! -d "${AGDP_DIR}" ]; then`,
+      `  git clone ${AGDP_REPO} "${AGDP_DIR}"`,
+      'fi',
+      `cd "${AGDP_DIR}" && npm install --production`,
+      '',
+      '# Register aGDP skill directory with OpenClaw',
+      `openclaw config set skills.load.extraDirs '["${AGDP_DIR}"]'`,
+      '',
+      '# Append Clawlancer-priority rule to system prompt',
+      'PROMPT_DIR="$HOME/.openclaw/agents/main/agent"',
+      'mkdir -p "$PROMPT_DIR"',
+      'PROMPT_FILE="$PROMPT_DIR/system-prompt.md"',
+      '# Only append if not already present',
+      'if ! grep -qF "## Marketplace Priority" "$PROMPT_FILE" 2>/dev/null; then',
+      `  echo '${priorityB64}' | base64 -d >> "$PROMPT_FILE"`,
+      'fi',
+      '',
+      '# Restart gateway to pick up changes',
+      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'sleep 2',
+      `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
+      'sleep 3',
+      '',
+      'echo "AGDP_INSTALL_DONE"',
+    ].join('\n');
+
+    await ssh.execCommand(`cat > /tmp/ic-agdp-install.sh << 'ICEOF'\n${script}\nICEOF`);
+    const result = await ssh.execCommand('bash /tmp/ic-agdp-install.sh; EC=$?; rm -f /tmp/ic-agdp-install.sh; exit $EC');
+
+    if (result.code !== 0 || !result.stdout.includes("AGDP_INSTALL_DONE")) {
+      logger.error("aGDP install failed", { error: result.stderr, stdout: result.stdout, route: "lib/ssh" });
+      throw new Error(`aGDP install failed: ${result.stderr || result.stdout}`);
+    }
+  } finally {
+    ssh.dispose();
+  }
+}
+
+export async function uninstallAgdpSkill(vm: VMRecord): Promise<void> {
+  const ssh = await connectSSH(vm);
+  try {
+    const script = [
+      '#!/bin/bash',
+      'set -eo pipefail',
+      NVM_PREAMBLE,
+      '',
+      '# Remove aGDP repo directory',
+      `rm -rf "${AGDP_DIR}"`,
+      '',
+      '# Remove extraDirs config',
+      `openclaw config set skills.load.extraDirs '[]'`,
+      '',
+      '# Remove Clawlancer-priority rule from system prompt',
+      'PROMPT_FILE="$HOME/.openclaw/agents/main/agent/system-prompt.md"',
+      'if [ -f "$PROMPT_FILE" ]; then',
+      "  sed -i '/^## Marketplace Priority$/,/^$/d' \"$PROMPT_FILE\"",
+      'fi',
+      '',
+      '# Restart gateway to pick up changes',
+      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'sleep 2',
+      `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
+      'sleep 3',
+      '',
+      'echo "AGDP_UNINSTALL_DONE"',
+    ].join('\n');
+
+    await ssh.execCommand(`cat > /tmp/ic-agdp-uninstall.sh << 'ICEOF'\n${script}\nICEOF`);
+    const result = await ssh.execCommand('bash /tmp/ic-agdp-uninstall.sh; EC=$?; rm -f /tmp/ic-agdp-uninstall.sh; exit $EC');
+
+    if (result.code !== 0 || !result.stdout.includes("AGDP_UNINSTALL_DONE")) {
+      logger.error("aGDP uninstall failed", { error: result.stderr, stdout: result.stdout, route: "lib/ssh" });
+      throw new Error(`aGDP uninstall failed: ${result.stderr || result.stdout}`);
+    }
   } finally {
     ssh.dispose();
   }
