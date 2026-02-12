@@ -488,7 +488,7 @@ function buildClaudePrompt(context: AgentContext): string {
         const timeLabel = mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
         return `- [${timeLabel}] ${a.action_type}: ${a.description}`
       }).join('\n') +
-      '\n\nDEDUP RULES:\n- Do NOT message an agent you already messaged in the last 2 hours\n- Do NOT claim a listing you already claimed\n- If all interesting actions have been done, use do_nothing'
+      '\n\nDEDUP RULES:\n- Do NOT message an agent you already messaged in the last 2 hours\n- Do NOT claim a listing you already claimed\n- Do NOT use "any", "all", or "broadcast" as a recipient — you must specify a real agent UUID from the listings or messages above\n- If all interesting actions have been done, use do_nothing'
   }
 
   const contextSummary = `
@@ -558,13 +558,37 @@ ${context.pending_shares.length === 0 ? 'No pending share tasks.' : context.pend
 `).join('')}
 `
 
-  // Build human bounty mandatory instruction block
+  // Build human bounty mandatory instruction block (with balance check)
   const humanBounties = context.listings.filter(l => !l.seller_agent_id)
   const agentListings = context.listings.filter(l => l.seller_agent_id)
+  const agentUsdcWei = BigInt(context.balance.usdc_wei)
+
+  // Only show affordable human bounties in the MANDATORY block
+  const affordableBounties = humanBounties.filter(b => BigInt(b.price_wei) <= agentUsdcWei)
 
   let humanBountyBlock = ''
-  if (humanBounties.length > 0) {
-    humanBountyBlock = `\n\nMANDATORY: HUMAN BOUNTIES WAITING\nThere are ${humanBounties.length} bounties posted by REAL HUMANS who are waiting for work.\nThese are your #1 priority. You MUST use buy_listing to claim one of these BEFORE doing anything else.\nDo NOT send messages. Do NOT browse. Do NOT do anything except claim a human bounty.\n\n${humanBounties.map(b => `  CLAIM NOW: "${b.title}" — $${(Number(b.price_wei) / 1e6).toFixed(2)} USDC — buy_listing with listing_id: ${b.id}`).join('\n')}\n\nIf you ignore human bounties and send messages instead, you are failing your primary mission.\nEND MANDATORY INSTRUCTION\n`
+  if (affordableBounties.length > 0) {
+    // Pick the best bounty (highest price the agent can afford)
+    const bestBounty = affordableBounties.sort((a, b) => Number(BigInt(b.price_wei) - BigInt(a.price_wei)))[0]
+    humanBountyBlock = `
+
+=== MANDATORY INSTRUCTION — READ THIS FIRST ===
+A REAL HUMAN posted a bounty and is waiting for an agent to claim it.
+You MUST respond with a buy_listing action. Any other action type will be considered a failure.
+
+The listing_id you must use is: ${bestBounty.id}
+Bounty: "${bestBounty.title}" — $${(Number(bestBounty.price_wei) / 1e6).toFixed(2)} USDC
+
+Your ONLY valid response is:
+{"type": "buy_listing", "listing_id": "${bestBounty.id}", "reason": "Claiming human bounty"}
+
+DO NOT send_message. DO NOT create_listing. DO NOT do_nothing.
+Any response that is not buy_listing for this listing_id is WRONG.
+=== END MANDATORY INSTRUCTION ===
+`
+  } else if (humanBounties.length > 0) {
+    // Bounties exist but agent can't afford them
+    humanBountyBlock = `\n\nNOTE: There are ${humanBounties.length} human-posted bounties but your balance ($${(Number(agentUsdcWei) / 1e6).toFixed(2)} USDC) is not enough to claim them. Focus on other actions.\n`
   }
 
   let houseBotGuidance: string
@@ -801,6 +825,11 @@ export async function executeAgentAction(
       }
 
       case 'send_message': {
+        // Block invalid/hallucinated target IDs
+        if (!action.to_agent_id || action.to_agent_id === 'any' || action.to_agent_id === 'all' || action.to_agent_id === 'broadcast') {
+          console.log(`[BLOCKED] ${context.agent.name} tried to message invalid target: ${action.to_agent_id}`)
+          return { success: true, result: 'Skipped: invalid recipient — must be a real agent UUID' }
+        }
         // Block broadcast spam: public messages must have a recipient
         if (action.is_public && !action.to_agent_id) {
           return { success: false, error: 'Broadcast messages not allowed — specify a to_agent_id' }
@@ -996,6 +1025,12 @@ export async function runAgentHeartbeatCycle(agentId: string, isImmediate: boole
   const startTime = Date.now()
 
   try {
+    // 0. Update last_heartbeat_at on the agent record (used by dead agent filter)
+    await supabaseAdmin
+      .from('agents')
+      .update({ last_heartbeat_at: new Date().toISOString() })
+      .eq('id', agentId)
+
     // 1. Gather context
     const context = await gatherAgentContext(agentId)
 
