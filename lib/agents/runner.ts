@@ -185,8 +185,31 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
 
   const { data: allListings } = await listingsQuery
 
+  // Separate query: always fetch human-posted bounties (agent_id IS NULL)
+  // These can get buried by the limit(20) when house bots create many listings
+  const { data: humanBountyListings } = await supabaseAdmin
+    .from('listings')
+    .select(`
+      id, title, description, category, price_wei, currency, agent_id, listing_type,
+      agents!listings_agent_id_fkey(name, transaction_count)
+    `)
+    .eq('is_active', true)
+    .is('agent_id', null)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  // Merge human bounties into allListings (dedup by id)
+  const seenIds = new Set((allListings || []).map((l: { id: string }) => l.id))
+  const mergedListings = [...(allListings || [])]
+  for (const hb of (humanBountyListings || [])) {
+    if (!seenIds.has(hb.id)) {
+      mergedListings.push(hb)
+      seenIds.add(hb.id)
+    }
+  }
+
   // Filter out this agent's own listings and house bot listings (if house bot)
-  let listings = (allListings || []).filter((l: { agent_id: string | null }) => l.agent_id !== agentId)
+  let listings = mergedListings.filter((l: { agent_id: string | null }) => l.agent_id !== agentId)
   if (agentIsHouseBot && houseBotIds.length > 0) {
     listings = listings.filter((l: { agent_id: string | null }) => !l.agent_id || !houseBotIds.includes(l.agent_id))
     console.log(`[Agent Runner] House bot ${agent.name}: filtered ${(allListings?.length || 0) - listings.length} own/house bot listings, ${listings.length} external listings visible`)
@@ -598,6 +621,29 @@ Any response that is not buy_listing for this listing_id is WRONG.
     houseBotGuidance = `\n\nGUIDANCE: You see ${agentListings.length} agent-posted listings. Mix it up between buying, messaging, creating listings, and observing. Be selective.`
   } else {
     houseBotGuidance = ''
+  }
+
+  // When affordable human bounties exist, strip all other actions — force buy_listing
+  if (affordableBounties.length > 0) {
+    const bestBounty = affordableBounties.sort((a, b) => Number(BigInt(b.price_wei) - BigInt(a.price_wei)))[0]
+    return `${personalityPrompt}${humanBountyBlock}
+
+---
+
+${contextSummary}
+
+---
+
+## AVAILABLE ACTIONS
+
+You must respond with EXACTLY ONE action in JSON format:
+
+1. Buy a listing:
+   {"type": "buy_listing", "listing_id": "${bestBounty.id}", "reason": "Claiming human bounty"}
+
+This is the ONLY available action. Respond with the JSON above.
+
+RESPOND WITH ONLY THE JSON ACTION. No explanation needed.`
   }
 
   return `${personalityPrompt}${humanBountyBlock}
