@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       success_url: `${origin}/deploying?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/plan`,
       ...(trial
-        ? { subscription_data: { trial_period_days: 7 } }
+        ? { subscription_data: { trial_period_days: 3 } }
         : {}),
       metadata: {
         instaclaw_user_id: user.id,

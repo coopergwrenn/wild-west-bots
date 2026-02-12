@@ -68,7 +68,16 @@ su - "\${OPENCLAW_USER}" -c '
   npm install -g openclaw
 '
 
-# ── 8. Create OpenClaw config directory with placeholder ──
+# ── 8. Install aGDP (Agent Commerce Protocol) skill ──
+su - "\${OPENCLAW_USER}" -c '
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+  git clone https://github.com/Virtual-Protocol/openclaw-acp "$HOME/virtuals-protocol-acp"
+  cd "$HOME/virtuals-protocol-acp"
+  npm install --production
+'
+
+# ── 9. Create OpenClaw config directory with placeholder ──
 mkdir -p "\${CONFIG_DIR}"
 cat > "\${CONFIG_DIR}/openclaw.json" <<'EOF'
 {"_placeholder":true,"gateway":{"mode":"local","port":18789,"bind":"lan"}}
@@ -76,11 +85,11 @@ EOF
 chown -R "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${CONFIG_DIR}"
 chmod 600 "\${CONFIG_DIR}/openclaw.json"
 
-# ── 9. Configure fail2ban ──
+# ── 10. Configure fail2ban ──
 rm -f /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null || true
 systemctl restart fail2ban 2>/dev/null || true
 
-# ── 10. Restart SSH with fresh host keys ──
+# ── 11. Restart SSH with fresh host keys ──
 if systemctl is-active ssh.service &>/dev/null; then systemctl restart ssh; fi
 
 echo "=== InstaClaw VM bootstrap complete at $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

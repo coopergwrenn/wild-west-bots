@@ -26,13 +26,13 @@ const tiers = [
     byok: "$14",
     description: "Perfect for personal use",
     features: [
-      "Your own OpenClaw instance",
-      "Dedicated VM",
-      "All channels included",
-      "1,000 credits/month",
+      "100 daily units (Haiku = 1, Sonnet = 3, Opus = 15)",
+      "All models included — Haiku, Sonnet & Opus",
+      "Dedicated VM + all channels",
+      "Switch models anytime via your bot",
     ],
     highlighted: false,
-    badge: "7-Day Free Trial",
+    badge: "3-Day Free Trial",
   },
   {
     name: "Pro",
@@ -40,13 +40,13 @@ const tiers = [
     byok: "$39",
     description: "For power users",
     features: [
-      "Everything in Starter",
-      "5,000 credits/month",
+      "500 daily units — 5x Starter",
+      "All models included — Haiku, Sonnet & Opus",
       "Priority support",
       "Early access to new features",
     ],
     highlighted: true,
-    badge: "Most Popular \u00B7 7-Day Free Trial",
+    badge: "Most Popular \u00B7 3-Day Free Trial",
   },
   {
     name: "Power",
@@ -54,13 +54,13 @@ const tiers = [
     byok: "$99",
     description: "Maximum performance",
     features: [
-      "Everything in Pro",
-      "25,000 credits/month",
+      "2,000 daily units — 20x Starter",
+      "All models included — Haiku, Sonnet & Opus",
       "Upgraded server resources",
       "Dedicated support",
     ],
     highlighted: false,
-    badge: "7-Day Free Trial",
+    badge: "3-Day Free Trial",
   },
 ];
 
@@ -84,7 +84,7 @@ export function Pricing() {
             Simple, Transparent Pricing
           </h2>
           <p className="text-sm sm:text-base max-w-[280px] sm:max-w-lg mx-auto mb-8" style={{ color: "var(--muted)" }}>
-            Every plan includes a dedicated VM and full OpenClaw instance. Credits set your monthly usage — you configure the rest.
+            Every plan includes a dedicated VM, all AI models, and all channels. Daily units reset at midnight UTC — use them on any model you like.
           </p>
 
           {/* BYOK toggle */}
@@ -164,7 +164,7 @@ export function Pricing() {
                   /mo
                 </span>
                 <p className="text-xs mt-1" style={{ color: "var(--accent)" }}>
-                  Free for 7 days
+                  Free for 3 days
                 </p>
               </div>
               <ul className="space-y-3 text-sm">

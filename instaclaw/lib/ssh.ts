@@ -83,15 +83,23 @@ export async function configureOpenClaw(
     }
     assertSafeShellArg(gatewayToken, "gatewayToken");
 
-    // Resolve API key: BYOK uses user's key, all-inclusive uses platform key
+    // Resolve API key:
+    // - BYOK: user's own Anthropic key (calls Anthropic directly)
+    // - All-inclusive: gateway token (calls our proxy which adds the real key)
     const apiKey =
       config.apiMode === "byok"
         ? config.apiKey!
-        : process.env.ANTHROPIC_API_KEY || "";
+        : gatewayToken; // Use gateway token as "API key" — proxy authenticates with it
     if (!apiKey) {
       throw new Error("No API key available for configuration");
     }
     assertSafeShellArg(apiKey, "apiKey");
+
+    // For all-inclusive: proxy base URL so OpenClaw routes through instaclaw.io
+    const proxyBaseUrl =
+      config.apiMode === "all_inclusive"
+        ? (process.env.NEXTAUTH_URL || "https://instaclaw.io") + "/api/gateway"
+        : "";
 
     const openclawModel = toOpenClawModel(config.model || "claude-sonnet-4-5-20250929");
     assertSafeShellArg(openclawModel, "model");
@@ -167,6 +175,28 @@ export async function configureOpenClaw(
       );
     }
 
+    // For all-inclusive: override auth profile to route through our proxy
+    if (proxyBaseUrl) {
+      const authProfile = JSON.stringify({
+        profiles: {
+          "anthropic:default": {
+            type: "api_key",
+            provider: "anthropic",
+            key: gatewayToken,
+            baseUrl: proxyBaseUrl,
+          },
+        },
+      });
+      const authB64 = Buffer.from(authProfile, "utf-8").toString("base64");
+      scriptParts.push(
+        '# Override auth profile to route through instaclaw.io proxy',
+        'AUTH_DIR="$HOME/.openclaw/agents/main/agent"',
+        'mkdir -p "$AUTH_DIR"',
+        `echo '${authB64}' | base64 -d > "$AUTH_DIR/auth-profiles.json"`,
+        ''
+      );
+    }
+
     // Set model
     scriptParts.push(
       '# Set model',
@@ -190,6 +220,15 @@ export async function configureOpenClaw(
     scriptParts.push(
       '# Install Clawlancer MCP skill',
       'openclaw skill install clawlancer 2>/dev/null || true',
+      ''
+    );
+
+    // Load aGDP (Agent Commerce Protocol) skill if pre-installed by cloud-init
+    scriptParts.push(
+      '# Load aGDP Agent Commerce Protocol skill',
+      'if [ -d "$HOME/virtuals-protocol-acp" ]; then',
+      `  openclaw config set skills.load.extraDirs '["$HOME/virtuals-protocol-acp"]'`,
+      'fi',
       ''
     );
 

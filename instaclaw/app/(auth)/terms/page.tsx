@@ -68,7 +68,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-lg font-semibold mb-3">4. Billing and Payment</h2>
             <p>
-              Subscriptions are billed monthly. All plans include a 7-day free
+              Subscriptions are billed monthly. All plans include a 3-day free
               trial. After the trial period, your payment method will be charged
               automatically. You may cancel at any time from the billing page. No
               refunds are provided for partial months.

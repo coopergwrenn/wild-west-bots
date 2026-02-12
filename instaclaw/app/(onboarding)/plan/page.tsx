@@ -274,7 +274,7 @@ export default function PlanPage() {
                       borderBottom: "1px solid #F0F0F0",
                     }}
                   >
-                    7-Day Free Trial
+                    3-Day Free Trial
                   </div>
                 )}
 
@@ -310,7 +310,7 @@ export default function PlanPage() {
                   </div>
                   {tier.trial && (
                     <p className="text-xs mt-1" style={{ color: "#999999" }}>
-                      Free for 7 days
+                      Free for 3 days
                     </p>
                   )}
                 </div>

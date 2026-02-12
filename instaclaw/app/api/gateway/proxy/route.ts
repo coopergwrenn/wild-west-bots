@@ -5,13 +5,6 @@ import { sendAdminAlertEmail } from "@/lib/email";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
-/** Models allowed per tier (cheapest → most expensive). */
-const TIER_ALLOWED_MODELS: Record<string, string[]> = {
-  starter: ["haiku"],
-  pro: ["haiku", "sonnet"],
-  power: ["haiku", "sonnet", "opus"],
-};
-
 /** Estimated cost per message unit in dollars (haiku-equivalent). */
 const COST_PER_UNIT = 0.004;
 
@@ -36,25 +29,49 @@ function modelFamily(model: string): string {
 }
 
 /**
+ * Build a valid Anthropic Messages API response containing a friendly text
+ * message. OpenClaw treats this as a normal assistant reply, so the user
+ * sees a natural chat message instead of a raw error.
+ */
+function friendlyAssistantResponse(text: string, model: string) {
+  return NextResponse.json(
+    {
+      id: "msg_limit_" + Date.now(),
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text }],
+      model,
+      stop_reason: "end_turn",
+      stop_sequence: null,
+      usage: { input_tokens: 0, output_tokens: 0 },
+    },
+    { status: 200 }
+  );
+}
+
+/**
  * Gateway proxy for all-inclusive VMs.
  *
  * The OpenClaw gateway on each VM calls this endpoint instead of Anthropic
  * directly. This gives us centralized rate limiting per tier:
- *   - Starter: 100 messages/day  (Haiku only)
- *   - Pro:     500 messages/day  (Haiku + Sonnet)
- *   - Power:  2000 messages/day  (Haiku + Sonnet + Opus)
+ *   - Starter: 100 units/day
+ *   - Pro:     500 units/day
+ *   - Power:  2000 units/day
  *
- * Cost weights: Haiku=1, Sonnet=3, Opus=15 (reflects Anthropic pricing).
+ * All tiers have access to all models. Cost weights handle fairness:
+ * Haiku=1, Sonnet=3, Opus=15 (reflects Anthropic pricing).
  *
- * Auth: X-Gateway-Token header (the per-VM token generated at configure time).
+ * Auth: x-api-key header (gateway token, sent by Anthropic SDK on VMs).
  */
 export async function POST(req: NextRequest) {
   try {
     // --- Authenticate via gateway token ---
-    const gatewayToken = req.headers.get("x-gateway-token");
+    // Accept from x-gateway-token (legacy) or x-api-key (Anthropic SDK compat)
+    const gatewayToken =
+      req.headers.get("x-gateway-token") || req.headers.get("x-api-key");
     if (!gatewayToken) {
       return NextResponse.json(
-        { error: "Missing X-Gateway-Token" },
+        { error: "Missing authentication" },
         { status: 401 }
       );
     }
@@ -101,7 +118,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Fail-safe: if tier is null, default to starter (haiku-only, 100/day) ---
+    // --- Fail-safe: if tier is null, default to starter (100/day) ---
     const tier = vm.tier || "starter";
     if (!vm.tier) {
       logger.warn("VM has null tier — defaulting to starter", {
@@ -118,25 +135,6 @@ export async function POST(req: NextRequest) {
       requestedModel = parsed.model || vm.default_model || "claude-haiku-4-5-20251001";
     } catch {
       requestedModel = vm.default_model || "claude-haiku-4-5-20251001";
-    }
-
-    // --- Enforce model-tier restrictions ---
-    const family = modelFamily(requestedModel);
-    const allowed = TIER_ALLOWED_MODELS[tier] ?? TIER_ALLOWED_MODELS.starter;
-
-    if (!allowed.includes(family)) {
-      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
-      const allowedStr = allowed.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(", ");
-      return NextResponse.json(
-        {
-          type: "error",
-          error: {
-            type: "forbidden",
-            message: `${family.charAt(0).toUpperCase() + family.slice(1)} is not available on the ${tierName} plan. Allowed models: ${allowedStr}. Upgrade your plan at instaclaw.io/billing.`,
-          },
-        },
-        { status: 403 }
-      );
     }
 
     // --- Global daily spend circuit breaker ---
@@ -171,15 +169,9 @@ export async function POST(req: NextRequest) {
         ).catch(() => {});
       }
 
-      return NextResponse.json(
-        {
-          type: "error",
-          error: {
-            type: "rate_limit_error",
-            message: "Platform daily capacity reached. Haiku-only mode is active. Please try again tomorrow or switch to Haiku.",
-          },
-        },
-        { status: 429 }
+      return friendlyAssistantResponse(
+        "Hey! The platform is at capacity for today. Service resets at midnight UTC. In the meantime, you can switch to Haiku for basic tasks — just ask me to \"use Haiku\" and I'll switch models.\n\nSorry about the wait!",
+        requestedModel
       );
     }
 
@@ -191,7 +183,6 @@ export async function POST(req: NextRequest) {
 
     if (limitError) {
       logger.error("Usage limit check failed", { error: String(limitError), route: "gateway/proxy", vmId: vm.id });
-      // Fail CLOSED — deny the request when we can't verify limits
       return NextResponse.json(
         {
           type: "error",
@@ -205,18 +196,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (limitResult && !limitResult.allowed) {
-      const creditMsg = limitResult.credits_remaining === 0
-        ? " Purchase credit packs at instaclaw.io/dashboard for additional messages."
-        : "";
-      return NextResponse.json(
-        {
-          type: "error",
-          error: {
-            type: "rate_limit_error",
-            message: `Daily limit reached (${limitResult.count}/${limitResult.limit} message units). Resets at midnight UTC.${creditMsg}`,
-          },
-        },
-        { status: 429 }
+      const family = modelFamily(requestedModel);
+      const costNote =
+        family === "opus"
+          ? " (Opus uses 15 units per message — switching to Haiku or Sonnet would stretch your units further!)"
+          : family === "sonnet"
+          ? " (Sonnet uses 3 units per message — switching to Haiku would give you 3x more messages!)"
+          : "";
+
+      return friendlyAssistantResponse(
+        `You've used all your message units for today! (${limitResult.count}/${limitResult.limit} units used)${costNote}\n\nYour limit resets at midnight UTC. Need more right now? Grab a credit pack to keep chatting:\n\n→ https://instaclaw.io/dashboard\n\n• 50 units — $5\n• 200 units — $15\n• 500 units — $30\n\nCredits kick in instantly and never expire!`,
+        requestedModel
       );
     }
 

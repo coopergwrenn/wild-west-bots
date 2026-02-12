@@ -177,7 +177,7 @@ export async function sendWelcomeEmail(
           Start Setup
         </a>
         <p style="margin-top: 24px; font-size: 12px; color: #888;">
-          All plans include a 7-day free trial. No charge until the trial ends.
+          All plans include a 3-day free trial. No charge until the trial ends.
         </p>
       </div>
     `,

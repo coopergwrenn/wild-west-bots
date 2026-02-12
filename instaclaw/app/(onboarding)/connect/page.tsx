@@ -42,7 +42,7 @@ export default function ConnectPage() {
     "all_inclusive"
   );
   const [apiKey, setApiKey] = useState("");
-  const [models, setModels] = useState<string[]>(["claude-sonnet-4-5-20250929"]);
+  const [defaultModel, setDefaultModel] = useState("claude-haiku-4-5-20251001");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
@@ -50,19 +50,9 @@ export default function ConnectPage() {
   const [faqOpen, setFaqOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-
   function selectChannel(channel: string) {
     setSelectedChannel(channel);
     setChannels([channel]);
-  }
-
-  function toggleModel(modelId: string) {
-    setModels((prev) =>
-      prev.includes(modelId)
-        ? prev.filter((m) => m !== modelId)
-        : [...prev, modelId]
-    );
   }
 
   // Auto-verify token when pasted/entered
@@ -126,8 +116,8 @@ export default function ConnectPage() {
       return;
     }
 
-    if (apiMode === "all_inclusive" && models.length === 0) {
-      setError("Please select at least one model.");
+    if (apiMode === "all_inclusive" && !defaultModel) {
+      setError("Please select a default model.");
       return;
     }
 
@@ -143,7 +133,7 @@ export default function ConnectPage() {
         channels: [selectedChannel],
         apiMode,
         apiKey: apiMode === "byok" ? apiKey.trim() : undefined,
-        models: apiMode === "all_inclusive" ? models : undefined,
+        models: apiMode === "all_inclusive" ? [defaultModel] : undefined,
       })
     );
 
@@ -897,144 +887,96 @@ export default function ConnectPage() {
           </div>
         )}
 
-        {/* Model Selection (all-inclusive only) */}
+        {/* Default Model Selection (all-inclusive only) */}
         {apiMode === "all_inclusive" && (
           <div className="mb-10">
             <label
-              className="block text-sm font-medium mb-4"
+              className="block text-sm font-medium mb-2"
               style={{ color: "#333334" }}
             >
-              Available Models
+              Default Model
             </label>
+            <p className="text-xs mb-4" style={{ color: "#666" }}>
+              Pick a starting model. You can switch anytime just by asking your bot.
+            </p>
 
-            {/* Dropdown */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
-                className="w-full bg-white rounded-lg px-4 py-3 text-left flex items-center justify-between transition-all"
-                style={{
-                  border: "1px solid rgba(0, 0, 0, 0.1)",
-                }}
-              >
-                <span className="text-sm" style={{ color: "#333334" }}>
-                  {models.length === 0
-                    ? "Select models..."
-                    : models.length === 1
-                    ? models
-                        .map((id) => {
-                          const modelMap: Record<string, string> = {
-                            "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
-                            "claude-sonnet-4-5-20250929": "Claude Sonnet 4.5",
-                            "claude-opus-4-5-20250820": "Claude Opus 4.5",
-                            "claude-opus-4-6": "Claude Opus 4.6",
-                          };
-                          return modelMap[id] || id;
-                        })
-                        .join(", ")
-                    : `${models.length} models selected`}
-                </span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+            <div className="space-y-2">
+              {[
+                {
+                  id: "claude-haiku-4-5-20251001",
+                  label: "Claude Haiku 4.5",
+                  cost: "1 unit/message",
+                  desc: "Great for everyday tasks — fast, capable, and stretches your units the furthest.",
+                  recommended: true,
+                },
+                {
+                  id: "claude-sonnet-4-5-20250929",
+                  label: "Claude Sonnet 4.5",
+                  cost: "3 units/message",
+                  desc: "Stronger reasoning for complex questions. Good balance of smarts and cost.",
+                  recommended: false,
+                },
+                {
+                  id: "claude-opus-4-6",
+                  label: "Claude Opus 4.6",
+                  cost: "15 units/message",
+                  desc: "Most powerful — best for deep analysis, coding, and multi-step tasks.",
+                  recommended: false,
+                },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setDefaultModel(m.id)}
+                  className="w-full bg-white rounded-lg p-4 text-left transition-all flex items-start gap-3"
                   style={{
-                    transform: modelDropdownOpen ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s ease",
-                    color: "#666",
+                    border: defaultModel === m.id
+                      ? "2px solid #DC6743"
+                      : "1px solid rgba(0, 0, 0, 0.1)",
                   }}
                 >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-
-              {modelDropdownOpen && (
-                <div
-                  className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-lg z-10"
-                  style={{
-                    border: "1px solid rgba(0, 0, 0, 0.1)",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-                  }}
-                >
-                  {[
-                    {
-                      id: "claude-haiku-4-5-20251001",
-                      label: "Claude Haiku 4.5",
-                      desc: "Fast & affordable",
-                    },
-                    {
-                      id: "claude-sonnet-4-5-20250929",
-                      label: "Claude Sonnet 4.5",
-                      desc: "Recommended — best balance",
-                    },
-                    {
-                      id: "claude-opus-4-5-20250820",
-                      label: "Claude Opus 4.5",
-                      desc: "Premium intelligence",
-                    },
-                    {
-                      id: "claude-opus-4-6",
-                      label: "Claude Opus 4.6",
-                      desc: "Most advanced",
-                    },
-                  ].map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => toggleModel(m.id)}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3"
-                      style={{
-                        borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
-                      }}
-                    >
-                      {/* Checkbox */}
+                  {/* Radio circle */}
+                  <div
+                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5"
+                    style={{
+                      borderColor: defaultModel === m.id ? "#DC6743" : "rgba(0, 0, 0, 0.2)",
+                    }}
+                  >
+                    {defaultModel === m.id && (
                       <div
-                        className="w-5 h-5 rounded border flex items-center justify-center shrink-0"
-                        style={{
-                          border: models.includes(m.id)
-                            ? "2px solid #DC6743"
-                            : "1px solid rgba(0, 0, 0, 0.2)",
-                          background: models.includes(m.id) ? "#DC6743" : "transparent",
-                        }}
-                      >
-                        {models.includes(m.id) && (
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="#ffffff"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ background: "#DC6743" }}
+                      />
+                    )}
+                  </div>
 
-                      {/* Label */}
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold" style={{ color: "#333334" }}>
-                          {m.label}
-                        </p>
-                        <p className="text-xs" style={{ color: "#666" }}>
-                          {m.desc}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold" style={{ color: "#333334" }}>
+                        {m.label}
+                      </p>
+                      {m.recommended && (
+                        <span
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                          style={{ background: "rgba(220, 103, 67, 0.1)", color: "#DC6743" }}
+                        >
+                          Recommended
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "#f8f7f4", color: "#666" }}>
+                        {m.cost}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: "#666" }}>
+                      {m.desc}
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
 
-            <p className="text-xs mt-2" style={{ color: "#666" }}>
-              Click the dropdown to select the models you want available
+            <p className="text-xs mt-3" style={{ color: "#999" }}>
+              All models are always available — just tell your bot &quot;use Sonnet&quot; or &quot;switch to Opus&quot; anytime.
             </p>
           </div>
         )}

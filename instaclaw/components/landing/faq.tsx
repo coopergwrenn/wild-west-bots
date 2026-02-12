@@ -45,7 +45,7 @@ const faqs = [
   },
   {
     q: "Is there a free trial?",
-    a: "Yes — every plan comes with a 7-day free trial. Full access to everything, no restrictions. You won't be charged until the trial ends, and you can cancel anytime before that.",
+    a: "Yes — every plan comes with a 3-day free trial. Full access to everything, no restrictions. You won't be charged until the trial ends, and you can cancel anytime before that.",
   },
   {
     q: "What's BYOK mode?",
