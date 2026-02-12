@@ -35,8 +35,8 @@ const faqs = [
   },
   {
     q: "What are credits?",
-    a: "Credits are how we measure AI usage. Every message and task your AI handles uses a small number of credits. Starter gives you 1,000/month, Pro gives you 5,000, and Power gives you 25,000. Most people find that Starter covers casual daily use comfortably.",
-    tech: "Credits map roughly to AI token usage. A simple back-and-forth message might use 1-3 credits. A complex multi-step task (web research, code execution, file management) might use 10-50. BYOK users bypass our credit system entirely and pay Anthropic directly based on their own API usage.",
+    a: "Every message your AI handles uses a small number of units. Starter gives you 100 units/day, Pro gives you 500/day, and Power gives you 2,000/day — limits reset at midnight UTC. If you need more, you can grab a credit pack that kicks in instantly after your daily limit.",
+    tech: "Units are weighted by model: Haiku costs 1 unit, Sonnet costs 3, Opus costs 15. A simple message with Haiku uses 1 unit. BYOK users bypass the unit system entirely and pay Anthropic directly. Credit packs (50/$5, 200/$15, 500/$30) are available for overflow beyond daily limits.",
   },
   {
     q: "Is my data private?",
@@ -55,7 +55,7 @@ const faqs = [
   {
     q: "What AI model does it use?",
     a: "InstaClaw runs on Claude by Anthropic — the same model behind Claude.ai. On All-Inclusive plans, we handle model selection automatically. On BYOK plans, you can choose your preferred Claude model and have full control over your API configuration.",
-    tech: "Default model is Claude Sonnet 4.5 for the best balance of speed and capability. BYOK users can switch to Opus 4.6 for maximum intelligence or Haiku 4.5 for faster, cheaper responses. Model selection is configurable per-agent via the dashboard or API.",
+    tech: "Default model is Claude Haiku 4.5 — fast, capable, and the best value per unit. All models are always available: just tell your bot 'use Sonnet' or 'switch to Opus' mid-conversation. BYOK users can configure any Claude model via the dashboard or API.",
   },
   {
     q: "Do I get full access to the server?",

@@ -11,6 +11,7 @@ const tiers = [
     allInclusive: 29,
     byok: 14,
     description: "Perfect for personal use",
+    dailyUnits: 100,
     features: ["Full OpenClaw instance", "Dedicated VM", "Telegram integration"],
     trial: true,
   },
@@ -20,6 +21,7 @@ const tiers = [
     allInclusive: 99,
     byok: 39,
     description: "For power users",
+    dailyUnits: 500,
     features: ["Everything in Starter", "More CPU & RAM", "Priority support"],
     popular: true,
     trial: true,
@@ -30,6 +32,7 @@ const tiers = [
     allInclusive: 299,
     byok: 99,
     description: "Maximum performance",
+    dailyUnits: 2000,
     features: ["Everything in Pro", "Top-tier resources", "Dedicated support"],
     trial: true,
   },
@@ -314,6 +317,17 @@ export default function PlanPage() {
                     </p>
                   )}
                 </div>
+
+                {apiMode === "all_inclusive" && (
+                  <div className="mb-4 py-2.5 px-3 rounded-md" style={{ background: "#faf5f3" }}>
+                    <p className="text-xs font-semibold" style={{ color: "#DC6743" }}>
+                      {tier.dailyUnits.toLocaleString()} units/day
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "#999" }}>
+                      ~{tier.dailyUnits.toLocaleString()} Haiku or ~{Math.floor(tier.dailyUnits / 3)} Sonnet messages
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   {tier.features.map((f) => (

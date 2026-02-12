@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
   const [showCreditPacks, setShowCreditPacks] = useState(false);
   const [creditsPurchased, setCreditsPurchased] = useState(false);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(true);
   const creditPackRef = useRef<HTMLDivElement>(null);
 
   async function fetchStatus() {
@@ -127,6 +128,13 @@ export default function DashboardPage() {
     }
   }, [usage]);
 
+  // Show welcome card on first visit
+  useEffect(() => {
+    if (!localStorage.getItem("instaclaw_welcome_dismissed")) {
+      setWelcomeDismissed(false);
+    }
+  }, []);
+
   async function handleRestart() {
     setRestarting(true);
     try {
@@ -173,6 +181,11 @@ export default function DashboardPage() {
     }
   }
 
+  function dismissWelcome() {
+    setWelcomeDismissed(true);
+    localStorage.setItem("instaclaw_welcome_dismissed", "1");
+  }
+
   const vm = vmStatus?.vm;
   const billing = vmStatus?.billing;
   const healthColor =
@@ -206,6 +219,31 @@ export default function DashboardPage() {
           Manage your OpenClaw instance.
         </p>
       </div>
+
+      {/* Welcome card (first visit only) */}
+      {!welcomeDismissed && vmStatus?.status === "assigned" && (
+        <div
+          className="glass rounded-xl p-6 relative"
+          style={{ border: "1px solid var(--border)" }}
+        >
+          <button
+            onClick={dismissWelcome}
+            className="absolute top-4 right-4 w-6 h-6 flex items-center justify-center rounded-full cursor-pointer"
+            style={{ color: "var(--muted)", background: "rgba(0,0,0,0.04)" }}
+          >
+            <span className="text-sm leading-none">&times;</span>
+          </button>
+          <h2 className="text-lg font-semibold mb-2">Welcome to InstaClaw!</h2>
+          <p className="text-sm mb-3" style={{ color: "var(--muted)" }}>
+            Your AI agent is live on a dedicated server. Here&apos;s what to know:
+          </p>
+          <div className="space-y-2 text-sm" style={{ color: "var(--muted)" }}>
+            <p><strong style={{ color: "var(--foreground)" }}>Daily units</strong> — Your plan includes a daily unit allowance that resets at midnight UTC. Haiku costs 1 unit, Sonnet 3, Opus 15.</p>
+            <p><strong style={{ color: "var(--foreground)" }}>Switch models anytime</strong> — Just tell your bot &quot;use Sonnet&quot; or &quot;switch to Opus&quot; in chat.</p>
+            <p><strong style={{ color: "var(--foreground)" }}>Credit packs</strong> — Need more after your daily limit? Buy credits below — they kick in instantly.</p>
+          </div>
+        </div>
+      )}
 
       {/* Credits purchased success banner */}
       {creditsPurchased && (

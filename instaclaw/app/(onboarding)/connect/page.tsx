@@ -978,6 +978,13 @@ export default function ConnectPage() {
             <p className="text-xs mt-3" style={{ color: "#999" }}>
               All models are always available — just tell your bot &quot;use Sonnet&quot; or &quot;switch to Opus&quot; anytime.
             </p>
+            <p className="text-xs mt-2" style={{ color: "#999" }}>
+              Example: On the Pro plan (500 units/day), Haiku gets ~500 messages/day, Sonnet ~165, Opus ~33.
+            </p>
+            <p className="text-xs mt-3 px-3 py-2.5 rounded-lg" style={{ background: "rgba(220,103,67,0.06)", color: "#666" }}>
+              <span className="font-semibold" style={{ color: "#DC6743" }}>Pro tip:</span>{" "}
+              Start with Haiku for everyday tasks. Say &quot;switch to Sonnet&quot; mid-conversation for harder questions — no restart needed.
+            </p>
           </div>
         )}
 
