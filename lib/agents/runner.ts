@@ -39,6 +39,7 @@ export interface AgentContext {
     seller_agent_id: string | null
     seller_name: string
     seller_transaction_count: number
+    listing_type: string | null
   }>
   messages: Array<{
     id: string
@@ -84,6 +85,13 @@ export interface AgentContext {
     listing_price_usdc: string | null
     bounty_url: string | null
     expires_at: string
+  }>
+  recent_actions: Array<{
+    action_type: string
+    description: string
+    related_agent_name: string | null
+    related_listing_id: string | null
+    created_at: string
   }>
 }
 
@@ -168,7 +176,7 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
   let listingsQuery = supabaseAdmin
     .from('listings')
     .select(`
-      id, title, description, category, price_wei, currency, agent_id,
+      id, title, description, category, price_wei, currency, agent_id, listing_type,
       agents!listings_agent_id_fkey(name, transaction_count)
     `)
     .eq('is_active', true)
@@ -182,6 +190,41 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
   if (agentIsHouseBot && houseBotIds.length > 0) {
     listings = listings.filter((l: { agent_id: string | null }) => !l.agent_id || !houseBotIds.includes(l.agent_id))
     console.log(`[Agent Runner] House bot ${agent.name}: filtered ${(allListings?.length || 0) - listings.length} own/house bot listings, ${listings.length} external listings visible`)
+  }
+
+  // Filter out listings from dead/inactive agents (no webhook, not hosted, never heartbeated in 24h)
+  {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sellerAgentIds = [...new Set(listings.filter((l: any) => l.agent_id).map((l: any) => l.agent_id))] as string[]
+    if (sellerAgentIds.length > 0) {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { data: sellerAgents } = await supabaseAdmin
+        .from('agents')
+        .select('id, webhook_url, is_hosted, last_heartbeat_at, created_at')
+        .in('id', sellerAgentIds)
+
+      const deadAgentIds = new Set<string>()
+      for (const seller of (sellerAgents || [])) {
+        if (seller.created_at > oneHourAgo) continue // Still setting up
+        const isAlive = !!seller.webhook_url || !!seller.is_hosted ||
+          (seller.last_heartbeat_at && seller.last_heartbeat_at > twentyFourHoursAgo)
+        if (!isAlive) deadAgentIds.add(seller.id)
+      }
+
+      if (deadAgentIds.size > 0) {
+        const before = listings.length
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        listings = listings.filter((l: any) => !l.agent_id || !deadAgentIds.has(l.agent_id))
+        console.log(`[Agent Runner] Filtered out ${before - listings.length} listings from dead/inactive agents`)
+      }
+    }
+
+    // House bots: only show BOUNTY-type listings (skip FIXED service offers from other agents)
+    if (agentIsHouseBot) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      listings = listings.filter((l: any) => l.listing_type === 'BOUNTY' || !l.agent_id)
+    }
   }
 
   // 4. Get recent messages directed at this agent
@@ -248,6 +291,33 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
     }
   }
 
+  // 9. Get recent action history from agent_logs (for memory/dedup)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const { data: recentLogs } = await supabaseAdmin
+    .from('agent_logs')
+    .select('heartbeat_at, action_chosen, execution_success')
+    .eq('agent_id', agentId)
+    .gte('heartbeat_at', twentyFourHoursAgo)
+    .eq('execution_success', true)
+    .order('heartbeat_at', { ascending: false })
+    .limit(30)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actionLogs = (recentLogs || []).filter((log: any) => {
+    const t = log.action_chosen?.type
+    return t && t !== 'skip' && t !== 'error' && t !== 'do_nothing'
+  })
+
+  // Resolve agent names for message recipients
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const targetAgentIds = [...new Set(actionLogs.map((l: any) => l.action_chosen?.to_agent_id).filter(Boolean))] as string[]
+  let agentNameMap: Record<string, string> = {}
+  if (targetAgentIds.length > 0) {
+    const { data: targets } = await supabaseAdmin.from('agents').select('id, name').in('id', targetAgentIds)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    agentNameMap = Object.fromEntries((targets || []).map((a: any) => [a.id, a.name]))
+  }
+
   return {
     agent: {
       id: agent.id,
@@ -271,6 +341,7 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
       seller_agent_id: l.agent_id || null,
       seller_name: l.agents?.name || 'Anonymous User',
       seller_transaction_count: l.agents?.transaction_count || 0,
+      listing_type: l.listing_type || null,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     messages: (messages || []).map((m: any) => ({
@@ -330,6 +401,27 @@ export async function gatherAgentContext(agentId: string): Promise<AgentContext>
         expires_at: s.expires_at,
       }
     }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recent_actions: actionLogs.slice(0, 25).map((log: any) => {
+      const a = log.action_chosen || {}
+      const targetName = a.to_agent_id ? agentNameMap[a.to_agent_id] || 'agent' : null
+      let desc = ''
+      switch (a.type) {
+        case 'send_message': desc = `Messaged ${targetName}: "${(a.content || '').slice(0, 80)}"`; break
+        case 'buy_listing': desc = `Claimed/bought listing ${a.listing_id}`; break
+        case 'create_listing': desc = `Created listing "${a.title}"`; break
+        case 'deliver': desc = `Delivered work for txn ${a.transaction_id}`; break
+        case 'release': desc = `Released escrow for txn ${a.transaction_id}`; break
+        default: desc = a.type || 'unknown action'
+      }
+      return {
+        action_type: a.type || 'UNKNOWN',
+        description: desc,
+        related_agent_name: targetName,
+        related_listing_id: a.listing_id || null,
+        created_at: log.heartbeat_at,
+      }
+    }),
   }
 }
 
@@ -385,6 +477,20 @@ function buildClaudePrompt(context: AgentContext): string {
   const personalityPrompt = PERSONALITY_PROMPTS[context.agent.personality as keyof typeof PERSONALITY_PROMPTS]
     || PERSONALITY_PROMPTS.random
 
+  // Build recent actions section for prompt
+  let recentActionsSection = ''
+  if (context.recent_actions.length === 0) {
+    recentActionsSection = 'No recent actions. This is your first cycle — explore the marketplace!'
+  } else {
+    recentActionsSection = 'DO NOT repeat these. Find something NEW to do.\n' +
+      context.recent_actions.map((a) => {
+        const mins = Math.floor((Date.now() - new Date(a.created_at).getTime()) / 60000)
+        const timeLabel = mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`
+        return `- [${timeLabel}] ${a.action_type}: ${a.description}`
+      }).join('\n') +
+      '\n\nDEDUP RULES:\n- Do NOT message an agent you already messaged in the last 2 hours\n- Do NOT claim a listing you already claimed\n- If all interesting actions have been done, use do_nothing'
+  }
+
   const contextSummary = `
 ## YOUR IDENTITY
 Name: ${context.agent.name}
@@ -416,6 +522,9 @@ ${context.my_listings.length === 0 ? 'You have no listings.' : context.my_listin
 ${context.messages.length === 0 ? 'No recent messages.' : context.messages.map((m) => `
 - From ${m.from_agent_name} (agent_id: ${m.from_agent_id}): "${m.content.slice(0, 200)}"
 `).join('')}
+
+## YOUR RECENT ACTIONS (last 24 hours)
+${recentActionsSection}
 
 ## ACTIVE ESCROWS
 ${context.active_escrows.length === 0 ? 'No active escrows.' : context.active_escrows.map((e) => `
@@ -449,33 +558,31 @@ ${context.pending_shares.length === 0 ? 'No pending share tasks.' : context.pend
 `).join('')}
 `
 
-  // Determine guidance based on what's available
+  // Build human bounty mandatory instruction block
   const humanBounties = context.listings.filter(l => !l.seller_agent_id)
   const agentListings = context.listings.filter(l => l.seller_agent_id)
+
+  let humanBountyBlock = ''
+  if (humanBounties.length > 0) {
+    humanBountyBlock = `\n\nMANDATORY: HUMAN BOUNTIES WAITING\nThere are ${humanBounties.length} bounties posted by REAL HUMANS who are waiting for work.\nThese are your #1 priority. You MUST use buy_listing to claim one of these BEFORE doing anything else.\nDo NOT send messages. Do NOT browse. Do NOT do anything except claim a human bounty.\n\n${humanBounties.map(b => `  CLAIM NOW: "${b.title}" — $${(Number(b.price_wei) / 1e6).toFixed(2)} USDC — buy_listing with listing_id: ${b.id}`).join('\n')}\n\nIf you ignore human bounties and send messages instead, you are failing your primary mission.\nEND MANDATORY INSTRUCTION\n`
+  }
 
   let houseBotGuidance: string
   if (context.listings.length === 0) {
     houseBotGuidance = `\n\nNOTE: No external listings available right now. Focus on creating interesting content - post a public message, create a new listing, or just observe the scene.`
-  } else if (humanBounties.length > 0) {
-    houseBotGuidance = `\n\nPRIORITY: There ${humanBounties.length === 1 ? 'is' : 'are'} ${humanBounties.length} HUMAN-POSTED bounty${humanBounties.length === 1 ? '' : 'ies'} waiting for an agent to claim! Real humans are waiting for work to be done. You should strongly consider claiming one using buy_listing with the Listing ID. Human bounties are your TOP PRIORITY — claim them before doing anything else.${agentListings.length > 0 ? `\nYou also see ${agentListings.length} agent-posted listings. For those, be more selective.` : ''}`
+  } else if (humanBounties.length === 0 && agentListings.length > 0) {
+    houseBotGuidance = `\n\nGUIDANCE: You see ${agentListings.length} agent-posted listings. Mix it up between buying, messaging, creating listings, and observing. Be selective.`
   } else {
-    houseBotGuidance = `\n\nGUIDANCE: You see ${context.listings.length} agent-posted listings. Consider your options:
-- Mix it up between buying, messaging, creating listings, and observing
-- Only buy something if it's genuinely interesting or useful
-- Be selective and strategic.`
+    houseBotGuidance = ''
   }
 
-  return `${personalityPrompt}
+  return `${personalityPrompt}${humanBountyBlock}
 
 ---
 
 IMPORTANT: You are performing on a live public feed where humans are watching.
 Your actions create content. Be interesting. Be surprising. Make the audience
 want to see what you do next.
-
-HUMAN BOUNTIES ARE TOP PRIORITY: If you see any bounties posted by "Anonymous User" (no agent_id),
-these are from REAL HUMANS waiting for work. CLAIM THEM IMMEDIATELY using buy_listing with the Listing ID.
-Do not message, observe, or do anything else when human bounties are available — claim first.
 
 For agent-posted listings, mix it up: messages, new listings, observing, or occasional purchases.
 ${houseBotGuidance}
@@ -601,6 +708,19 @@ export async function executeAgentAction(
       }
 
       case 'buy_listing': {
+        // Dedup: block re-claiming a listing this agent already has a transaction for
+        {
+          const { data: existingTxn } = await supabaseAdmin
+            .from('transactions')
+            .select('id')
+            .eq('listing_id', action.listing_id)
+            .or(`buyer_agent_id.eq.${context.agent.id},seller_agent_id.eq.${context.agent.id}`)
+            .limit(1)
+          if (existingTxn && existingTxn.length > 0) {
+            console.log(`[DEDUP] ${context.agent.name} blocked from re-claiming listing ${action.listing_id} (already has txn ${existingTxn[0].id})`)
+            return { success: true, result: 'Skipped: already claimed this listing' }
+          }
+        }
         // House bots use V1 DB-only transactions (no on-chain escrow)
         const isHouse = await isHouseBot(context.agent.id)
         if (isHouse) {
@@ -684,6 +804,21 @@ export async function executeAgentAction(
         // Block broadcast spam: public messages must have a recipient
         if (action.is_public && !action.to_agent_id) {
           return { success: false, error: 'Broadcast messages not allowed — specify a to_agent_id' }
+        }
+        // Dedup: block re-messaging the same agent within 2 hours
+        if (action.to_agent_id) {
+          const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+          const { data: recentlySent } = await supabaseAdmin
+            .from('messages')
+            .select('id')
+            .eq('from_agent_id', context.agent.id)
+            .eq('to_agent_id', action.to_agent_id)
+            .gte('created_at', twoHoursAgo)
+            .limit(1)
+          if (recentlySent && recentlySent.length > 0) {
+            console.log(`[DEDUP] ${context.agent.name} blocked from re-messaging ${action.to_agent_id} (sent within 2h)`)
+            return { success: true, result: 'Skipped: already messaged this agent recently' }
+          }
         }
         // Routes to correct table based on is_public flag:
         // - is_public=true → `messages` table → appears in feed
