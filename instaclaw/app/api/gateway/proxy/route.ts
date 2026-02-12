@@ -196,16 +196,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (limitResult && !limitResult.allowed) {
-      const family = modelFamily(requestedModel);
-      const costNote =
-        family === "opus"
-          ? " (Opus uses 15 units per message — switching to Haiku or Sonnet would stretch your units further!)"
-          : family === "sonnet"
-          ? " (Sonnet uses 3 units per message — switching to Haiku would give you 3x more messages!)"
-          : "";
-
       return friendlyAssistantResponse(
-        `You've used all your message units for today! (${limitResult.count}/${limitResult.limit} units used)${costNote}\n\nYour limit resets at midnight UTC. Need more right now? Grab a credit pack to keep chatting:\n\n→ https://instaclaw.io/dashboard\n\n• 50 units — $5\n• 200 units — $15\n• 500 units — $30\n\nCredits kick in instantly and never expire!`,
+        `Hey! You've hit your daily limit for today (${limitResult.count}/${limitResult.limit} units used). 😊\n\nYour limit resets at midnight UTC, but if you want to keep going right now, grab a credit pack — they kick in instantly and never expire:\n\n• 50 units — $5\n• 200 units — $15\n• 500 units — $30\n\n[Top up here →](https://instaclaw.io/dashboard?buy=credits)\n\n(Tip: Haiku uses 1 unit per message, Sonnet uses 3, and Opus uses 15 — switching models stretches your units further!)`,
         requestedModel
       );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ExternalLink,
@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [buyingPack, setBuyingPack] = useState<string | null>(null);
   const [showCreditPacks, setShowCreditPacks] = useState(false);
+  const creditPackRef = useRef<HTMLDivElement>(null);
 
   async function fetchStatus() {
     try {
@@ -99,6 +100,24 @@ export default function DashboardPage() {
     fetchUsage();
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-expand credit packs when ?buy=credits is in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("buy") === "credits") {
+      setShowCreditPacks(true);
+      setTimeout(() => {
+        creditPackRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, []);
+
+  // Auto-expand credit packs when at daily limit with 0 credits
+  useEffect(() => {
+    if (usage && usage.today >= usage.dailyLimit && usage.creditBalance <= 0) {
+      setShowCreditPacks(true);
+    }
+  }, [usage]);
 
   async function handleRestart() {
     setRestarting(true);
@@ -321,11 +340,9 @@ export default function DashboardPage() {
                   Haiku = 1 unit, Sonnet = 3 units, Opus = 15 units. Resets midnight UTC.
                 </p>
                 <div className="flex items-center gap-3">
-                  {usage.creditBalance > 0 && (
-                    <span className="text-xs font-medium" style={{ color: "var(--success)" }}>
-                      {usage.creditBalance} bonus credits
-                    </span>
-                  )}
+                  <span className="text-xs font-medium" style={{ color: usage.creditBalance > 0 ? "var(--success)" : "var(--muted)" }}>
+                    {usage.creditBalance} bonus credit{usage.creditBalance !== 1 ? "s" : ""}
+                  </span>
                   <button
                     onClick={() => setShowCreditPacks(!showCreditPacks)}
                     className="px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer"
@@ -339,9 +356,24 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* At-limit banner */}
+              {usage.today >= usage.dailyLimit && usage.creditBalance <= 0 && (
+                <div
+                  className="mt-3 rounded-lg p-3 text-center"
+                  style={{
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.2)",
+                  }}
+                >
+                  <p className="text-sm font-medium" style={{ color: "#ef4444" }}>
+                    You&apos;ve used all your units for today. Grab a credit pack to keep chatting!
+                  </p>
+                </div>
+              )}
+
               {/* Credit pack selector */}
               {showCreditPacks && (
-                <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                <div ref={creditPackRef} className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
                   <p className="text-sm font-medium mb-3">Credit Packs</p>
                   <div className="grid gap-3 sm:grid-cols-3">
                     {CREDIT_PACKS.map((pack) => (
