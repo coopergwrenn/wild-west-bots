@@ -36,7 +36,7 @@ const tiers = [
   },
   {
     name: "Pro",
-    allInclusive: "$79",
+    allInclusive: "$99",
     byok: "$39",
     description: "For power users",
     features: [
@@ -50,7 +50,7 @@ const tiers = [
   },
   {
     name: "Power",
-    allInclusive: "$199",
+    allInclusive: "$299",
     byok: "$99",
     description: "Maximum performance",
     features: [

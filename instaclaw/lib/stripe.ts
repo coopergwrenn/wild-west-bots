@@ -32,6 +32,6 @@ export function getPriceId(tier: Tier, apiMode: ApiMode): string {
 
 export const TIER_DISPLAY: Record<Tier, { name: string; allInclusive: number; byok: number }> = {
   starter: { name: "Starter", allInclusive: 29, byok: 14 },
-  pro: { name: "Pro", allInclusive: 79, byok: 39 },
-  power: { name: "Power", allInclusive: 199, byok: 99 },
+  pro: { name: "Pro", allInclusive: 99, byok: 39 },
+  power: { name: "Power", allInclusive: 299, byok: 99 },
 };

@@ -17,7 +17,7 @@ const tiers = [
   {
     id: "pro" as const,
     name: "Pro",
-    allInclusive: 79,
+    allInclusive: 99,
     byok: 39,
     description: "For power users",
     features: ["Everything in Starter", "More CPU & RAM", "Priority support"],
@@ -27,7 +27,7 @@ const tiers = [
   {
     id: "power" as const,
     name: "Power",
-    allInclusive: 199,
+    allInclusive: 299,
     byok: 99,
     description: "Maximum performance",
     features: ["Everything in Pro", "Top-tier resources", "Dedicated support"],

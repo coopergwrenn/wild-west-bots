@@ -18,7 +18,7 @@ export async function GET() {
   const supabase = getSupabase();
   const { data: vm } = await supabase
     .from("instaclaw_vms")
-    .select("id, tier, credit_balance")
+    .select("id, tier")
     .eq("assigned_to", session.user.id)
     .single();
 
@@ -83,7 +83,7 @@ export async function GET() {
       week,
       month,
       dailyLimit: TIER_LIMITS[tier] ?? 100,
-      creditBalance: vm.credit_balance ?? 0,
+      creditBalance: 0,
     });
   } catch (err) {
     logger.error("Usage stats error", { error: String(err), route: "vm/usage" });
@@ -92,7 +92,7 @@ export async function GET() {
       week: 0,
       month: 0,
       dailyLimit: TIER_LIMITS[vm.tier || "starter"] ?? 100,
-      creditBalance: vm.credit_balance ?? 0,
+      creditBalance: 0,
     });
   }
 }

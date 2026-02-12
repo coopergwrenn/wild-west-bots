@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import { sendAdminAlertEmail } from "@/lib/email";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
@@ -10,6 +11,20 @@ const TIER_ALLOWED_MODELS: Record<string, string[]> = {
   pro: ["haiku", "sonnet"],
   power: ["haiku", "sonnet", "opus"],
 };
+
+/** Estimated cost per message unit in dollars (haiku-equivalent). */
+const COST_PER_UNIT = 0.004;
+
+/**
+ * Global daily spend cap in dollars. If total platform-wide usage exceeds
+ * this threshold, only starter-tier (haiku) requests are allowed through.
+ * Configurable via DAILY_SPEND_CAP_DOLLARS env var.
+ */
+const DAILY_SPEND_CAP =
+  parseFloat(process.env.DAILY_SPEND_CAP_DOLLARS ?? "100");
+
+/** Track whether we've already sent a circuit-breaker alert today. */
+let circuitBreakerAlertDate = "";
 
 /** Extract the model family from a full model id (e.g. "claude-sonnet-4-5-..." → "sonnet"). */
 function modelFamily(model: string): string {
@@ -59,12 +74,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // --- Reject VMs with no api_mode set (misconfigured) ---
+    if (!vm.api_mode) {
+      logger.error("VM has null api_mode — blocking request", {
+        route: "gateway/proxy",
+        vmId: vm.id,
+      });
+      return NextResponse.json(
+        {
+          type: "error",
+          error: {
+            type: "forbidden",
+            message:
+              "Your instance is not fully configured. Please contact support or retry setup at instaclaw.io.",
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     // Only all-inclusive VMs should use the proxy
     if (vm.api_mode !== "all_inclusive") {
       return NextResponse.json(
         { error: "BYOK users should call Anthropic directly" },
         { status: 403 }
       );
+    }
+
+    // --- Fail-safe: if tier is null, default to starter (haiku-only, 100/day) ---
+    const tier = vm.tier || "starter";
+    if (!vm.tier) {
+      logger.warn("VM has null tier — defaulting to starter", {
+        route: "gateway/proxy",
+        vmId: vm.id,
+      });
     }
 
     // --- Parse request body to extract model ---
@@ -78,7 +121,6 @@ export async function POST(req: NextRequest) {
     }
 
     // --- Enforce model-tier restrictions ---
-    const tier = vm.tier || "starter";
     const family = modelFamily(requestedModel);
     const allowed = TIER_ALLOWED_MODELS[tier] ?? TIER_ALLOWED_MODELS.starter;
 
@@ -94,6 +136,50 @@ export async function POST(req: NextRequest) {
           },
         },
         { status: 403 }
+      );
+    }
+
+    // --- Global daily spend circuit breaker ---
+    const todayStr = new Date().toISOString().split("T")[0];
+    const { data: totalUsageRows } = await supabase
+      .from("instaclaw_daily_usage")
+      .select("message_count")
+      .eq("usage_date", todayStr);
+
+    const totalUnitsToday = (totalUsageRows ?? []).reduce(
+      (sum: number, row: { message_count: number }) => sum + row.message_count,
+      0
+    );
+    const estimatedSpend = totalUnitsToday * COST_PER_UNIT;
+
+    if (estimatedSpend >= DAILY_SPEND_CAP && tier !== "starter") {
+      logger.error("Circuit breaker tripped — daily spend cap exceeded", {
+        route: "gateway/proxy",
+        estimatedSpend,
+        cap: DAILY_SPEND_CAP,
+        totalUnits: totalUnitsToday,
+        vmId: vm.id,
+        tier,
+      });
+
+      // Send alert email once per day
+      if (circuitBreakerAlertDate !== todayStr) {
+        circuitBreakerAlertDate = todayStr;
+        sendAdminAlertEmail(
+          "Circuit Breaker Tripped — Daily Spend Cap Exceeded",
+          `Estimated daily API spend: $${estimatedSpend.toFixed(2)}\nCap: $${DAILY_SPEND_CAP}\nTotal units today: ${totalUnitsToday}\n\nAll non-starter requests are being paused. Starter (Haiku) requests still allowed.\n\nAdjust via DAILY_SPEND_CAP_DOLLARS env var.`
+        ).catch(() => {});
+      }
+
+      return NextResponse.json(
+        {
+          type: "error",
+          error: {
+            type: "rate_limit_error",
+            message: "Platform daily capacity reached. Haiku-only mode is active. Please try again tomorrow or switch to Haiku.",
+          },
+        },
+        { status: 429 }
       );
     }
 
