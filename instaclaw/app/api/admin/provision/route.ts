@@ -175,6 +175,6 @@ export async function POST(req: NextRequest) {
     mode: isSnapshot ? "snapshot" : "fresh",
     note: isSnapshot
       ? "VMs created from snapshot with cloud-init personalization. Status: ready."
-      : 'VMs are in "provisioning" status. Run install-openclaw.sh to finalize.',
+      : 'VMs are in "provisioning" status. Cloud-init is installing OpenClaw — the cloud-init-poll cron will flip to "ready" when done.',
   });
 }

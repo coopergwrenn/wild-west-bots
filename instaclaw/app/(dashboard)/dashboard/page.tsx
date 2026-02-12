@@ -12,6 +12,7 @@ import {
   Cpu,
   CreditCard,
   AlertTriangle,
+  Zap,
 } from "lucide-react";
 import { WorldIDBanner } from "@/components/dashboard/world-id-banner";
 
@@ -20,6 +21,12 @@ const MODEL_OPTIONS = [
   { id: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
   { id: "claude-opus-4-5-20250820", label: "Claude Opus 4.5" },
   { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
+];
+
+const CREDIT_PACKS = [
+  { id: "50", credits: 50, price: "$5" },
+  { id: "200", credits: 200, price: "$15" },
+  { id: "500", credits: 500, price: "$30" },
 ];
 
 interface VMStatus {
@@ -49,12 +56,22 @@ interface VMStatus {
   };
 }
 
+interface UsageData {
+  today: number;
+  week: number;
+  month: number;
+  dailyLimit: number;
+  creditBalance: number;
+}
+
 export default function DashboardPage() {
   const [vmStatus, setVmStatus] = useState<VMStatus | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [updatingModel, setUpdatingModel] = useState(false);
   const [modelSuccess, setModelSuccess] = useState(false);
-  const [usage, setUsage] = useState<{ today: number; week: number; month: number } | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [buyingPack, setBuyingPack] = useState<string | null>(null);
+  const [showCreditPacks, setShowCreditPacks] = useState(false);
 
   async function fetchStatus() {
     try {
@@ -66,14 +83,20 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchUsage() {
+    try {
+      const res = await fetch("/api/vm/usage");
+      const data = await res.json();
+      setUsage(data);
+    } catch {
+      // Silently handle
+    }
+  }
+
   useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 30_000);
-    // Fetch usage stats once on mount (not on the polling interval)
-    fetch("/api/vm/usage")
-      .then((r) => r.json())
-      .then(setUsage)
-      .catch(() => {});
+    fetchUsage();
     return () => clearInterval(interval);
   }, []);
 
@@ -106,6 +129,23 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleBuyCredits(pack: string) {
+    setBuyingPack(pack);
+    try {
+      const res = await fetch("/api/billing/credit-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pack }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } finally {
+      setBuyingPack(null);
+    }
+  }
+
   const vm = vmStatus?.vm;
   const billing = vmStatus?.billing;
   const healthColor =
@@ -125,6 +165,9 @@ export default function DashboardPage() {
         )
       )
     : null;
+
+  const usagePct = usage ? Math.min(100, (usage.today / usage.dailyLimit) * 100) : 0;
+  const usageBarColor = usagePct >= 90 ? "#ef4444" : usagePct >= 70 ? "#f59e0b" : "var(--success)";
 
   return (
     <div className="space-y-10">
@@ -243,12 +286,91 @@ export default function DashboardPage() {
               >
                 {vm.assignedAt
                   ? new Date(vm.assignedAt).toLocaleDateString()
-                  : "—"}
+                  : "\u2014"}
               </span>
             </div>
           </div>
 
-          {/* Usage Stats */}
+          {/* Usage & Credits (all-inclusive only) */}
+          {usage && vm.apiMode === "all_inclusive" && (
+            <div className="glass rounded-xl p-6" style={{ border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                  <span className="text-sm font-medium">Usage Today</span>
+                </div>
+                <span className="text-sm font-mono" style={{ color: "var(--muted)" }}>
+                  {usage.today} / {usage.dailyLimit} units
+                </span>
+              </div>
+              <div
+                className="h-2 rounded-full overflow-hidden mb-3"
+                style={{ background: "rgba(255,255,255,0.06)" }}
+              >
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${usagePct}%`,
+                    background: usageBarColor,
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Haiku = 1 unit, Sonnet = 3 units, Opus = 15 units. Resets midnight UTC.
+                </p>
+                <div className="flex items-center gap-3">
+                  {usage.creditBalance > 0 && (
+                    <span className="text-xs font-medium" style={{ color: "var(--success)" }}>
+                      {usage.creditBalance} bonus credits
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setShowCreditPacks(!showCreditPacks)}
+                    className="px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                    style={{
+                      background: "rgba(59,130,246,0.15)",
+                      color: "#3b82f6",
+                    }}
+                  >
+                    Buy More
+                  </button>
+                </div>
+              </div>
+
+              {/* Credit pack selector */}
+              {showCreditPacks && (
+                <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--border)" }}>
+                  <p className="text-sm font-medium mb-3">Credit Packs</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {CREDIT_PACKS.map((pack) => (
+                      <button
+                        key={pack.id}
+                        onClick={() => handleBuyCredits(pack.id)}
+                        disabled={buyingPack !== null}
+                        className="glass rounded-lg p-3 text-left cursor-pointer transition-all hover:border-white/30 disabled:opacity-50"
+                        style={{ border: "1px solid var(--border)" }}
+                      >
+                        <p className="text-lg font-bold">{pack.credits}</p>
+                        <p className="text-xs" style={{ color: "var(--muted)" }}>
+                          message units
+                        </p>
+                        <p className="text-sm font-semibold mt-1" style={{ color: "#3b82f6" }}>
+                          {buyingPack === pack.id ? "Redirecting..." : pack.price}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+                    Credits never expire and are used after your daily limit is reached.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Weekly/Monthly usage summary */}
           {usage && (
             <div className="grid gap-5 sm:grid-cols-3">
               <div className="glass rounded-xl p-6">
@@ -260,21 +382,8 @@ export default function DashboardPage() {
                 </p>
                 <p className="text-2xl font-bold">{usage.today}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  conversations
+                  message units
                 </p>
-                <div
-                  className="mt-2 h-1.5 rounded-full overflow-hidden"
-                  style={{ background: "rgba(255,255,255,0.06)" }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, (usage.today / Math.max(usage.week / 7, 1)) * 100)}%`,
-                      background: "var(--success)",
-                      transition: "width 0.5s ease",
-                    }}
-                  />
-                </div>
               </div>
               <div className="glass rounded-xl p-6">
                 <p
@@ -285,7 +394,7 @@ export default function DashboardPage() {
                 </p>
                 <p className="text-2xl font-bold">{usage.week}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  conversations
+                  message units
                 </p>
               </div>
               <div className="glass rounded-xl p-6">
@@ -297,7 +406,7 @@ export default function DashboardPage() {
                 </p>
                 <p className="text-2xl font-bold">{usage.month}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  conversations
+                  message units
                 </p>
               </div>
             </div>
@@ -458,7 +567,7 @@ export default function DashboardPage() {
                 >
                   {updatingModel
                     ? "Updating model..."
-                    : "Select the Claude model your bot uses."}
+                    : "Select the Claude model your bot uses. Cost per message varies by model."}
                 </p>
               </div>
             </div>

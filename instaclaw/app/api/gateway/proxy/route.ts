@@ -4,14 +4,32 @@ import { logger } from "@/lib/logger";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
+/** Models allowed per tier (cheapest → most expensive). */
+const TIER_ALLOWED_MODELS: Record<string, string[]> = {
+  starter: ["haiku"],
+  pro: ["haiku", "sonnet"],
+  power: ["haiku", "sonnet", "opus"],
+};
+
+/** Extract the model family from a full model id (e.g. "claude-sonnet-4-5-..." → "sonnet"). */
+function modelFamily(model: string): string {
+  const lower = model.toLowerCase();
+  if (lower.includes("opus")) return "opus";
+  if (lower.includes("sonnet")) return "sonnet";
+  if (lower.includes("haiku")) return "haiku";
+  return "unknown";
+}
+
 /**
  * Gateway proxy for all-inclusive VMs.
  *
  * The OpenClaw gateway on each VM calls this endpoint instead of Anthropic
  * directly. This gives us centralized rate limiting per tier:
- *   - Starter: 100 messages/day
- *   - Pro:     500 messages/day
- *   - Power:  2000 messages/day
+ *   - Starter: 100 messages/day  (Haiku only)
+ *   - Pro:     500 messages/day  (Haiku + Sonnet)
+ *   - Power:  2000 messages/day  (Haiku + Sonnet + Opus)
+ *
+ * Cost weights: Haiku=1, Sonnet=3, Opus=15 (reflects Anthropic pricing).
  *
  * Auth: X-Gateway-Token header (the per-VM token generated at configure time).
  */
@@ -49,24 +67,67 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- Check daily usage limit ---
-    const tier = vm.tier || "starter";
+    // --- Parse request body to extract model ---
+    const body = await req.text();
+    let requestedModel: string;
+    try {
+      const parsed = JSON.parse(body);
+      requestedModel = parsed.model || vm.default_model || "claude-haiku-4-5-20251001";
+    } catch {
+      requestedModel = vm.default_model || "claude-haiku-4-5-20251001";
+    }
 
+    // --- Enforce model-tier restrictions ---
+    const tier = vm.tier || "starter";
+    const family = modelFamily(requestedModel);
+    const allowed = TIER_ALLOWED_MODELS[tier] ?? TIER_ALLOWED_MODELS.starter;
+
+    if (!allowed.includes(family)) {
+      const tierName = tier.charAt(0).toUpperCase() + tier.slice(1);
+      const allowedStr = allowed.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(", ");
+      return NextResponse.json(
+        {
+          type: "error",
+          error: {
+            type: "forbidden",
+            message: `${family.charAt(0).toUpperCase() + family.slice(1)} is not available on the ${tierName} plan. Allowed models: ${allowedStr}. Upgrade your plan at instaclaw.io/billing.`,
+          },
+        },
+        { status: 403 }
+      );
+    }
+
+    // --- Check daily usage limit (with model cost weights) ---
     const { data: limitResult, error: limitError } = await supabase.rpc(
       "instaclaw_check_daily_limit",
-      { p_vm_id: vm.id, p_tier: tier }
+      { p_vm_id: vm.id, p_tier: tier, p_model: requestedModel }
     );
 
     if (limitError) {
       logger.error("Usage limit check failed", { error: String(limitError), route: "gateway/proxy", vmId: vm.id });
-      // Fail open — allow the request but log the error
-    } else if (limitResult && !limitResult.allowed) {
+      // Fail CLOSED — deny the request when we can't verify limits
       return NextResponse.json(
         {
           type: "error",
           error: {
             type: "rate_limit_error",
-            message: `Daily limit reached (${limitResult.count}/${limitResult.limit} messages). Resets at midnight UTC. Upgrade your plan for higher limits.`,
+            message: "Usage check temporarily unavailable. Please retry in a moment.",
+          },
+        },
+        { status: 503 }
+      );
+    }
+
+    if (limitResult && !limitResult.allowed) {
+      const creditMsg = limitResult.credits_remaining === 0
+        ? " Purchase credit packs at instaclaw.io/dashboard for additional messages."
+        : "";
+      return NextResponse.json(
+        {
+          type: "error",
+          error: {
+            type: "rate_limit_error",
+            message: `Daily limit reached (${limitResult.count}/${limitResult.limit} message units). Resets at midnight UTC.${creditMsg}`,
           },
         },
         { status: 429 }
@@ -82,8 +143,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    const body = await req.text();
 
     const anthropicRes = await fetch(ANTHROPIC_API_URL, {
       method: "POST",

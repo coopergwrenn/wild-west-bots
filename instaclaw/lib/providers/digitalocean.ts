@@ -1,4 +1,5 @@
 import { logger } from "../logger";
+import { getInstallOpenClawUserData } from "../cloud-init";
 import type { CloudProvider, ServerConfig, ServerResult } from "./types";
 
 const DO_BASE = "https://api.digitalocean.com/v2";
@@ -53,7 +54,7 @@ async function getFirewallId(name: string): Promise<string> {
 // ---------------------------------------------------------------------------
 
 const DO_DEFAULTS = {
-  sshKeyName: "instaclaw",
+  sshKeyName: "instaclaw-deploy",
   firewallName: "instaclaw-firewall",
   size: "s-2vcpu-4gb",
   image: "ubuntu-24-04-x64",
@@ -88,6 +89,9 @@ export const digitalOceanProvider: CloudProvider = {
   async createServer(config: ServerConfig): Promise<ServerResult> {
     const sshFingerprint = await getSSHKeyFingerprint(DO_DEFAULTS.sshKeyName);
 
+    // Use explicit userData if provided, otherwise auto-inject the install script
+    const userData = config.userData ?? getInstallOpenClawUserData();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const body: Record<string, any> = {
       name: config.name,
@@ -96,11 +100,8 @@ export const digitalOceanProvider: CloudProvider = {
       image: DO_DEFAULTS.image,
       ssh_keys: [sshFingerprint],
       tags: [DO_DEFAULTS.tag],
+      user_data: userData,
     };
-
-    if (config.userData) {
-      body.user_data = config.userData;
-    }
 
     const data = await doFetch("/droplets", {
       method: "POST",

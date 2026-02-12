@@ -3,6 +3,12 @@ import { auth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
 
+const TIER_LIMITS: Record<string, number> = {
+  starter: 100,
+  pro: 500,
+  power: 2000,
+};
+
 export async function GET() {
   const session = await auth();
   if (!session?.user?.id) {
@@ -12,55 +18,81 @@ export async function GET() {
   const supabase = getSupabase();
   const { data: vm } = await supabase
     .from("instaclaw_vms")
-    .select("id, ip_address, ssh_port, ssh_user")
+    .select("id, tier, credit_balance")
     .eq("assigned_to", session.user.id)
     .single();
 
   if (!vm) {
-    return NextResponse.json({ today: 0, week: 0, month: 0 });
+    return NextResponse.json({
+      today: 0,
+      week: 0,
+      month: 0,
+      dailyLimit: 100,
+      creditBalance: 0,
+    });
   }
 
   try {
-    // Dynamic import to avoid bundling issues
-    const { NodeSSH } = await import("node-ssh");
-    const ssh = new NodeSSH();
-    await ssh.connect({
-      host: vm.ip_address,
-      port: vm.ssh_port,
-      username: vm.ssh_user,
-      privateKey: Buffer.from(
-        process.env.SSH_PRIVATE_KEY_B64!,
-        "base64"
-      ).toString("utf-8"),
-    });
-
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    // Count session files by modification date
-    // Today
-    const todayResult = await ssh.execCommand(
-      `find ~/.openclaw/agents/main/sessions/ -name '*.json' -newermt '${todayStr}' 2>/dev/null | wc -l`
+    // 7 days ago
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = weekAgo.toISOString().split("T")[0];
+
+    // 30 days ago
+    const monthAgo = new Date(now);
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    const monthAgoStr = monthAgo.toISOString().split("T")[0];
+
+    // Fetch all three ranges in parallel
+    const [todayRes, weekRes, monthRes] = await Promise.all([
+      supabase
+        .from("instaclaw_daily_usage")
+        .select("message_count")
+        .eq("vm_id", vm.id)
+        .eq("usage_date", todayStr)
+        .single(),
+      supabase
+        .from("instaclaw_daily_usage")
+        .select("message_count")
+        .eq("vm_id", vm.id)
+        .gte("usage_date", weekAgoStr),
+      supabase
+        .from("instaclaw_daily_usage")
+        .select("message_count")
+        .eq("vm_id", vm.id)
+        .gte("usage_date", monthAgoStr),
+    ]);
+
+    const today = todayRes.data?.message_count ?? 0;
+    const week = (weekRes.data ?? []).reduce(
+      (sum: number, row: { message_count: number }) => sum + row.message_count,
+      0
     );
-    const today = parseInt(todayResult.stdout.trim()) || 0;
-
-    // Last 7 days
-    const weekResult = await ssh.execCommand(
-      `find ~/.openclaw/agents/main/sessions/ -name '*.json' -mtime -7 2>/dev/null | wc -l`
+    const month = (monthRes.data ?? []).reduce(
+      (sum: number, row: { message_count: number }) => sum + row.message_count,
+      0
     );
-    const week = parseInt(weekResult.stdout.trim()) || 0;
 
-    // Last 30 days
-    const monthResult = await ssh.execCommand(
-      `find ~/.openclaw/agents/main/sessions/ -name '*.json' -mtime -30 2>/dev/null | wc -l`
-    );
-    const month = parseInt(monthResult.stdout.trim()) || 0;
+    const tier = vm.tier || "starter";
 
-    ssh.dispose();
-
-    return NextResponse.json({ today, week, month });
+    return NextResponse.json({
+      today,
+      week,
+      month,
+      dailyLimit: TIER_LIMITS[tier] ?? 100,
+      creditBalance: vm.credit_balance ?? 0,
+    });
   } catch (err) {
     logger.error("Usage stats error", { error: String(err), route: "vm/usage" });
-    return NextResponse.json({ today: 0, week: 0, month: 0 });
+    return NextResponse.json({
+      today: 0,
+      week: 0,
+      month: 0,
+      dailyLimit: TIER_LIMITS[vm.tier || "starter"] ?? 100,
+      creditBalance: vm.credit_balance ?? 0,
+    });
   }
 }

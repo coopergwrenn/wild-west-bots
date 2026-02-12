@@ -38,6 +38,38 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
+
+      // --- Handle credit pack purchases ---
+      if (session.metadata?.type === "credit_pack") {
+        const vmId = session.metadata.vm_id;
+        const credits = parseInt(session.metadata.credits || "0", 10);
+
+        if (vmId && credits > 0) {
+          // Atomically increment credit balance via RPC
+          await supabase.rpc("instaclaw_add_credits", {
+            p_vm_id: vmId,
+            p_credits: credits,
+          });
+
+          // Log the purchase
+          await supabase.from("instaclaw_credit_purchases").insert({
+            vm_id: vmId,
+            stripe_payment_intent: session.payment_intent as string,
+            credits_purchased: credits,
+            amount_cents: session.amount_total ?? 0,
+          });
+
+          logger.info("Credit pack purchased", {
+            route: "billing/webhook",
+            vmId,
+            credits,
+            paymentIntent: session.payment_intent,
+          });
+        }
+        break;
+      }
+
+      // --- Handle subscription checkout ---
       const userId = session.metadata?.instaclaw_user_id;
       const tier = session.metadata?.tier;
       const apiMode = session.metadata?.api_mode;

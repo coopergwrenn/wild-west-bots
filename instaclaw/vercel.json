@@ -13,6 +13,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/cloud-init-poll",
+      "schedule": "*/2 * * * *"
+    },
+    {
       "path": "/api/cron/backup",
       "schedule": "0 3 * * *"
     }
