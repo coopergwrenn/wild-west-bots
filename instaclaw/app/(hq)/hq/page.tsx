@@ -538,20 +538,18 @@ export default function HQPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 sm:mb-6">
         <h1 className="text-3xl sm:text-4xl font-normal tracking-[-0.5px]" style={{ fontFamily: "var(--font-serif)" }}>Task Board</h1>
-        <div className="glow-wrap" style={{ width: "auto", display: "inline-block" }}>
-          <div className="glow-border" style={{ borderRadius: "0.5rem" }}>
-            <div className="glow-spinner" />
-            <button
-              onClick={openCreate}
-              className="glow-content flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium cursor-pointer"
-              style={{ borderRadius: "calc(0.5rem - 1.5px)", background: "#ffffff" }}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Add Task</span>
-              <span className="sm:hidden">Add</span>
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={openCreate}
+          className="glass flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium cursor-pointer rounded-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            boxShadow:
+              "0 0 12px 2px rgba(220, 103, 67, 0.15), 0 0 24px 4px rgba(220, 103, 67, 0.08), 0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <Plus className="w-4 h-4" />
+          <span className="hidden sm:inline">Add Task</span>
+          <span className="sm:hidden">Add</span>
+        </button>
       </div>
 
       {/* Mobile: Tab bar + single column */}
