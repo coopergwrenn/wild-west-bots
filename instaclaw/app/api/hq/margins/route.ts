@@ -25,15 +25,21 @@ export async function GET() {
     const vmList = vms ?? [];
 
     // --- Provider breakdown ---
+    const EMPTY_COUNTS = { vmCount: 0, assignedCount: 0, readyCount: 0, provisioningCount: 0 };
     const providerMap = new Map<
       string,
       { vmCount: number; assignedCount: number; readyCount: number; provisioningCount: number }
     >();
 
+    // Seed all known providers so they always appear
+    for (const name of Object.keys(VM_MONTHLY_COST)) {
+      providerMap.set(name, { ...EMPTY_COUNTS });
+    }
+
     for (const vm of vmList) {
       const p = vm.provider ?? "hetzner";
       if (!providerMap.has(p)) {
-        providerMap.set(p, { vmCount: 0, assignedCount: 0, readyCount: 0, provisioningCount: 0 });
+        providerMap.set(p, { ...EMPTY_COUNTS });
       }
       const entry = providerMap.get(p)!;
       entry.vmCount++;
