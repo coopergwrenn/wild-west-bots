@@ -3,9 +3,16 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Lock, Loader2 } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Lock, Loader2, LayoutGrid, BarChart3 } from "lucide-react";
+
+const NAV_TABS = [
+  { href: "/hq", label: "Board", icon: LayoutGrid },
+  { href: "/hq/analytics", label: "Analytics", icon: BarChart3 },
+] as const;
 
 export default function HQLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -108,6 +115,26 @@ export default function HQLayout({ children }: { children: React.ReactNode }) {
             <Image src="/logo.png" alt="InstaClaw" width={44} height={44} unoptimized style={{ imageRendering: "pixelated" }} />
             Instaclaw <span style={{ color: "var(--muted)" }}>HQ</span>
           </Link>
+          <div className="flex items-center gap-1">
+            {NAV_TABS.map((tab) => {
+              const isActive = tab.href === "/hq" ? pathname === "/hq" : pathname.startsWith(tab.href);
+              const Icon = tab.icon;
+              return (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                  style={{
+                    background: isActive ? "rgba(0,0,0,0.06)" : "transparent",
+                    color: isActive ? "var(--foreground)" : "var(--muted)",
+                  }}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
       <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>

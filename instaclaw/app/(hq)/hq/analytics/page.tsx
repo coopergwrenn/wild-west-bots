@@ -1,0 +1,333 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import {
+  Eye,
+  Users,
+  TrendingUp,
+  Clock,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
+
+interface AnalyticsData {
+  overview: [number, number, number]; // pageviews, sessions, unique_visitors
+  daily: [string, number][]; // [day, views]
+  topPages: [string, number, number][]; // [path, views, uniques]
+  referrers: [string, number][]; // [referrer, visits]
+  recentEvents: [string, string, string][]; // [event, url, timestamp]
+}
+
+function timeAgo(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function parseDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url || "(direct)";
+  }
+}
+
+export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/hq/analytics");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Error ${res.status}`);
+      }
+      setData(await res.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load analytics");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--muted)" }} />
+      </div>
+    );
+  }
+
+  if (error && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-4">
+        <AlertCircle className="w-8 h-8" style={{ color: "var(--error)" }} />
+        <p className="text-sm" style={{ color: "var(--muted)" }}>{error}</p>
+        <button
+          onClick={fetchData}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-opacity hover:opacity-80"
+          style={{ background: "rgba(0,0,0,0.08)" }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const [pageviews, sessions, uniqueVisitors] = data.overview;
+  const pagesPerSession = sessions > 0 ? (pageviews / sessions).toFixed(1) : "0";
+
+  const kpis = [
+    { label: "Pageviews", value: pageviews.toLocaleString(), icon: Eye },
+    { label: "Unique Visitors", value: uniqueVisitors.toLocaleString(), icon: Users },
+    { label: "Sessions", value: sessions.toLocaleString(), icon: TrendingUp },
+    { label: "Pages / Session", value: pagesPerSession, icon: Clock },
+  ];
+
+  const maxDaily = Math.max(...data.daily.map(([, v]) => v), 1);
+  const maxPageViews = Math.max(...data.topPages.map(([, v]) => v), 1);
+  const maxReferrerVisits = Math.max(...data.referrers.map(([, v]) => v), 1);
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
+        <h1
+          className="text-3xl sm:text-4xl font-normal tracking-[-0.5px]"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          Analytics
+        </h1>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="glass flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium cursor-pointer rounded-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+          style={{
+            boxShadow:
+              "0 0 12px 2px rgba(220, 103, 67, 0.15), 0 0 24px 4px rgba(220, 103, 67, 0.08), 0 2px 8px rgba(0,0,0,0.06)",
+          }}
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <div key={kpi.label} className="glass rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Icon className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                <span className="text-xs" style={{ color: "var(--muted)" }}>{kpi.label}</span>
+              </div>
+              <p
+                className="text-2xl sm:text-3xl font-normal tracking-[-0.5px]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                {kpi.value}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Daily Pageviews Chart */}
+      <div className="glass rounded-xl p-4 sm:p-5 mb-6">
+        <h2
+          className="text-base font-normal tracking-[-0.3px] mb-4"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          Daily Pageviews
+          <span className="text-xs ml-2" style={{ color: "var(--muted)", fontFamily: "inherit" }}>
+            Last 30 days
+          </span>
+        </h2>
+        {data.daily.length === 0 ? (
+          <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>No data yet</p>
+        ) : (
+          <div className="flex items-end gap-[2px] sm:gap-1" style={{ height: 160 }}>
+            {data.daily.map(([day, views], i) => {
+              const pct = (views / maxDaily) * 100;
+              return (
+                <div
+                  key={day}
+                  className="flex-1 relative group"
+                  style={{ height: "100%" }}
+                >
+                  <div
+                    className="absolute bottom-0 left-0 right-0 rounded-t transition-colors"
+                    style={{
+                      height: `${Math.max(pct, 2)}%`,
+                      background: "var(--accent)",
+                      opacity: 0.7,
+                    }}
+                  />
+                  {/* Tooltip */}
+                  <div
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+                    style={{
+                      background: "var(--foreground)",
+                      color: "var(--background)",
+                    }}
+                  >
+                    {day}: {views}
+                  </div>
+                  {/* X-axis label for first and last */}
+                  {(i === 0 || i === data.daily.length - 1) && (
+                    <span
+                      className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      {new Date(day + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* Bottom spacing for x-axis labels */}
+        {data.daily.length > 0 && <div className="h-5" />}
+      </div>
+
+      {/* Top Pages + Referrers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
+        {/* Top Pages */}
+        <div className="glass rounded-xl p-4 sm:p-5">
+          <h2
+            className="text-base font-normal tracking-[-0.3px] mb-3"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Top Pages
+          </h2>
+          {data.topPages.length === 0 ? (
+            <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>No data yet</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.topPages.map(([path, views, uniques]) => (
+                <div
+                  key={path}
+                  className="relative flex items-center justify-between px-3 py-2 rounded-lg text-sm"
+                >
+                  <div
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: "var(--accent)",
+                      opacity: 0.08,
+                      width: `${(views / maxPageViews) * 100}%`,
+                    }}
+                  />
+                  <span className="relative truncate mr-3" style={{ maxWidth: "60%" }}>
+                    {path || "/"}
+                  </span>
+                  <span className="relative text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                    {views} views &middot; {uniques} unique
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Referrers */}
+        <div className="glass rounded-xl p-4 sm:p-5">
+          <h2
+            className="text-base font-normal tracking-[-0.3px] mb-3"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            Referrers
+          </h2>
+          {data.referrers.length === 0 ? (
+            <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>No data yet</p>
+          ) : (
+            <div className="space-y-1.5">
+              {data.referrers.map(([referrer, visits]) => (
+                <div
+                  key={referrer}
+                  className="relative flex items-center justify-between px-3 py-2 rounded-lg text-sm"
+                >
+                  <div
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: "var(--accent)",
+                      opacity: 0.08,
+                      width: `${(visits / maxReferrerVisits) * 100}%`,
+                    }}
+                  />
+                  <span className="relative truncate mr-3" style={{ maxWidth: "70%" }}>
+                    {parseDomain(referrer)}
+                  </span>
+                  <span className="relative text-xs whitespace-nowrap" style={{ color: "var(--muted)" }}>
+                    {visits} visits
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent Events */}
+      <div className="glass rounded-xl p-4 sm:p-5">
+        <h2
+          className="text-base font-normal tracking-[-0.3px] mb-3"
+          style={{ fontFamily: "var(--font-serif)" }}
+        >
+          Recent Events
+          <span className="text-xs ml-2" style={{ color: "var(--muted)", fontFamily: "inherit" }}>
+            Last 24 hours
+          </span>
+        </h2>
+        {data.recentEvents.length === 0 ? (
+          <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>No events yet</p>
+        ) : (
+          <div className="space-y-1 overflow-y-auto" style={{ maxHeight: 320 }}>
+            {data.recentEvents.map(([event, url, timestamp], i) => {
+              const isPageview = event === "$pageview";
+              return (
+                <div
+                  key={`${timestamp}-${i}`}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm"
+                  style={{ background: "rgba(0,0,0,0.02)" }}
+                >
+                  <span
+                    className="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      background: isPageview ? "rgba(220, 103, 67, 0.1)" : "rgba(0,0,0,0.05)",
+                      color: isPageview ? "var(--accent)" : "var(--muted)",
+                    }}
+                  >
+                    {event.replace(/^\$/, "")}
+                  </span>
+                  <span className="truncate flex-1 text-xs" style={{ color: "var(--muted)" }}>
+                    {url ? (() => { try { return new URL(url).pathname; } catch { return url; } })() : "—"}
+                  </span>
+                  <span className="shrink-0 text-xs" style={{ color: "var(--muted)" }}>
+                    {timeAgo(timestamp)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
