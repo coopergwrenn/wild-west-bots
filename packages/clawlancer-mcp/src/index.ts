@@ -3,7 +3,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const BASE_URL = process.env.CLAWLANCER_BASE_URL || "https://clawlancer.ai";
-const API_KEY = process.env.CLAWLANCER_API_KEY || "";
+let API_KEY = process.env.CLAWLANCER_API_KEY || "";
+let SESSION_AGENT_ID = ""; // Set after registration so tools can reference it
 
 function headers(auth = true): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -44,6 +45,15 @@ function usdcToWei(usdc: string): string {
   return Math.round(parseFloat(usdc) * 1_000_000).toString();
 }
 
+function requireAuth(): void {
+  if (!API_KEY) {
+    throw new Error(
+      "Not authenticated. Call register_agent first to create an agent and get an API key, " +
+      "or set CLAWLANCER_API_KEY in your environment."
+    );
+  }
+}
+
 // --- Server ---
 
 const server = new McpServer({
@@ -61,7 +71,8 @@ server.registerTool("register_agent", {
     agent_name: z.string().describe("Name for the agent"),
     wallet_address: z
       .string()
-      .describe("Ethereum wallet address (0x...)"),
+      .optional()
+      .describe("Ethereum wallet address (0x...). Optional — a wallet is auto-assigned if not provided."),
     bio: z
       .string()
       .optional()
@@ -78,9 +89,9 @@ server.registerTool("register_agent", {
 }, async ({ agent_name, wallet_address, bio, skills, referral_source }) => {
   const body: Record<string, unknown> = {
     agent_name,
-    wallet_address,
     referral_source: referral_source || "mcp",
   };
+  if (wallet_address) body.wallet_address = wallet_address;
   if (bio) body.bio = bio;
   if (skills) body.skills = skills;
 
@@ -90,14 +101,26 @@ server.registerTool("register_agent", {
     auth: false,
   }) as Record<string, unknown>;
 
+  // Store the API key in memory so the rest of the session works without restart
+  if (data.api_key && typeof data.api_key === "string") {
+    API_KEY = data.api_key;
+  }
+  // Store the agent ID for tools that need it
+  const agent = data.agent as Record<string, unknown> | undefined;
+  if (agent?.id && typeof agent.id === "string") {
+    SESSION_AGENT_ID = agent.id;
+  }
+
   // Append next_steps guidance
   data.next_steps = [
     "Save your API key above — it will not be shown again",
+    "Your session is now authenticated — all tools will work immediately",
     ...(bio ? [] : ["Call update_profile to add a bio and skills"]),
     "Call list_bounties to find work",
     "Call claim_bounty to start earning USDC",
     "Call get_balance to check your wallet",
   ];
+  data.session_authenticated = true;
 
   return text(data);
 });
@@ -107,6 +130,7 @@ server.registerTool("get_my_profile", {
   description:
     "Get your agent's profile, stats, reputation, recent transactions, and active listings.",
 }, async () => {
+  requireAuth();
   const data = await api("/api/agents/me");
   return text(data);
 });
@@ -126,6 +150,7 @@ server.registerTool("update_profile", {
       .describe("Avatar URL (must be https)"),
   },
 }, async (args) => {
+  requireAuth();
   const body: Record<string, unknown> = {};
   if (args.bio !== undefined) body.bio = args.bio;
   if (args.skills !== undefined) body.skills = args.skills;
@@ -244,6 +269,7 @@ server.registerTool("create_listing", {
       .describe("FIXED (service you sell) or BOUNTY (task you pay for). Default: FIXED"),
   },
 }, async (args) => {
+  requireAuth();
   const data = await api("/api/listings", {
     method: "POST",
     body: {
@@ -268,6 +294,7 @@ server.registerTool("claim_bounty", {
     listing_id: z.string().describe("Listing UUID to claim"),
   },
 }, async ({ listing_id }) => {
+  requireAuth();
   const data = await api(`/api/listings/${listing_id}/claim`, {
     method: "POST",
     body: {},
@@ -284,6 +311,7 @@ server.registerTool("submit_work", {
     deliverable: z.string().describe("The completed work (text, URL, or description)"),
   },
 }, async ({ transaction_id, deliverable }) => {
+  requireAuth();
   const data = await api(`/api/transactions/${transaction_id}/deliver`, {
     method: "POST",
     body: { deliverable },
@@ -299,6 +327,7 @@ server.registerTool("release_payment", {
     transaction_id: z.string().describe("Transaction UUID"),
   },
 }, async ({ transaction_id }) => {
+  requireAuth();
   const data = await api(`/api/transactions/${transaction_id}/release`, {
     method: "POST",
     body: {},
@@ -317,6 +346,7 @@ server.registerTool("get_my_transactions", {
       .describe("Filter by transaction state"),
   },
 }, async ({ agent_id, state }) => {
+  requireAuth();
   const params = new URLSearchParams();
   params.set("agent_id", agent_id);
   if (state) params.set("state", state);
@@ -331,6 +361,7 @@ server.registerTool("get_transaction", {
     transaction_id: z.string().describe("Transaction UUID"),
   },
 }, async ({ transaction_id }) => {
+  requireAuth();
   const data = await api(`/api/transactions/${transaction_id}`);
   return text(data);
 });
@@ -344,6 +375,7 @@ server.registerTool("get_balance", {
     agent_id: z.string().describe("Your agent UUID"),
   },
 }, async ({ agent_id }) => {
+  requireAuth();
   const data = await api(`/api/wallet/balance?agent_id=${agent_id}`);
   return text(data);
 });
@@ -361,6 +393,7 @@ server.registerTool("leave_review", {
     comment: z.string().optional().describe("Review comment (max 1000 chars)"),
   },
 }, async ({ transaction_id, agent_id, rating, comment }) => {
+  requireAuth();
   const data = await api(`/api/transactions/${transaction_id}/review`, {
     method: "POST",
     body: { agent_id, rating, comment },
@@ -387,6 +420,7 @@ server.registerTool("send_message", {
     content: z.string().describe("Message content"),
   },
 }, async ({ to_agent_id, content }) => {
+  requireAuth();
   const data = await api("/api/messages/send", {
     method: "POST",
     body: { to_agent_id, content },
@@ -402,6 +436,7 @@ server.registerTool("get_messages", {
     limit: z.number().optional().describe("Max messages to return (default 50)"),
   },
 }, async ({ peer_agent_id, limit }) => {
+  requireAuth();
   const params = limit ? `?limit=${limit}` : "";
   const data = await api(`/api/messages/${peer_agent_id}${params}`);
   return text(data);

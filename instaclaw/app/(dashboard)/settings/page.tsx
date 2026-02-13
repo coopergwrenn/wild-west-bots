@@ -14,6 +14,7 @@ import {
   Phone,
   CreditCard,
   Store,
+  Mail,
 } from "lucide-react";
 import { WorldIDSection } from "@/components/dashboard/world-id-section";
 
@@ -38,6 +39,7 @@ interface VMStatus {
     hasDiscord: boolean;
     hasBraveSearch: boolean;
     agdpEnabled: boolean;
+    gmailConnected: boolean;
   };
   billing?: {
     tier: string;
@@ -69,6 +71,8 @@ export default function SettingsPage() {
   const [togglingAgdp, setTogglingAgdp] = useState(false);
   const [agdpConfirm, setAgdpConfirm] = useState<"enable" | "disable" | null>(null);
   const [agdpSuccess, setAgdpSuccess] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [disconnectingGmail, setDisconnectingGmail] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -81,6 +85,9 @@ export default function SettingsPage() {
         }
         if (data.vm?.agdpEnabled != null) {
           setAgdpEnabled(data.vm.agdpEnabled);
+        }
+        if (data.vm?.gmailConnected != null) {
+          setGmailConnected(data.vm.gmailConnected);
         }
       })
       .catch(() => {});
@@ -506,6 +513,59 @@ export default function SettingsPage() {
 
       {/* World ID Verification */}
       <WorldIDSection />
+
+      {/* Gmail Connection */}
+      <div>
+        <h2 className="text-2xl font-normal tracking-[-0.5px] mb-5 flex items-center gap-2" style={{ fontFamily: "var(--font-serif)" }}>
+          <Mail className="w-5 h-5" /> Gmail Personalization
+        </h2>
+        <div className="glass rounded-xl p-6" style={{ border: "1px solid var(--border)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 mr-4">
+              <p className="text-sm font-medium mb-1">
+                {gmailConnected ? "Gmail Connected" : "Gmail Not Connected"}
+              </p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                {gmailConnected
+                  ? "Your agent has been personalized based on your inbox patterns."
+                  : "Connect Gmail to let your agent learn about you from inbox patterns (metadata only, never full emails)."}
+              </p>
+            </div>
+            {gmailConnected ? (
+              <button
+                onClick={async () => {
+                  setDisconnectingGmail(true);
+                  try {
+                    const res = await fetch("/api/gmail/disconnect", { method: "POST" });
+                    if (res.ok) {
+                      setGmailConnected(false);
+                    }
+                  } finally {
+                    setDisconnectingGmail(false);
+                  }
+                }}
+                disabled={disconnectingGmail}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                style={{
+                  background: "rgba(239,68,68,0.1)",
+                  color: "#ef4444",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                }}
+              >
+                {disconnectingGmail ? "Disconnecting..." : "Disconnect"}
+              </button>
+            ) : (
+              <a
+                href="/api/gmail/connect"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors shrink-0"
+                style={{ background: "var(--accent)", color: "#fff" }}
+              >
+                Connect
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Channel Token Management */}
       {vm.channelsEnabled?.includes("discord") && (

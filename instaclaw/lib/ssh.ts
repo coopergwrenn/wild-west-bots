@@ -515,6 +515,22 @@ export async function updateModel(vm: VMRecord, model: string): Promise<boolean>
   }
 }
 
+export async function updateMemoryMd(
+  vm: VMRecord,
+  content: string
+): Promise<void> {
+  const ssh = await connectSSH(vm);
+  try {
+    const agentDir = "$HOME/.openclaw/agents/main/agent";
+    const b64 = Buffer.from(content, "utf-8").toString("base64");
+    await ssh.execCommand(
+      `mkdir -p ${agentDir} && echo '${b64}' | base64 -d > ${agentDir}/MEMORY.md`
+    );
+  } finally {
+    ssh.dispose();
+  }
+}
+
 export async function updateSystemPrompt(
   vm: VMRecord,
   systemPrompt: string

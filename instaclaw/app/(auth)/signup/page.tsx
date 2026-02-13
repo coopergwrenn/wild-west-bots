@@ -44,7 +44,7 @@ export default function SignupPage() {
 
   async function handleGoogleSignIn() {
     document.cookie = `instaclaw_invite_code=${encodeURIComponent(code)}; path=/; max-age=3600; SameSite=Lax`;
-    await signIn("google", { callbackUrl: "/gmail-connect" });
+    await signIn("google", { callbackUrl: "/connect" });
   }
 
   return (
@@ -102,7 +102,10 @@ export default function SignupPage() {
               disabled={loading || code.length < 14}
               className="w-full px-6 py-4 rounded-lg text-base font-semibold transition-all cursor-pointer disabled:opacity-50"
               style={{
-                background: "#DC6743",
+                background: "linear-gradient(-75deg, #c75a34, #DC6743, #e8845e, #DC6743, #c75a34)",
+                backdropFilter: "blur(2px)",
+                WebkitBackdropFilter: "blur(2px)",
+                boxShadow: "rgba(255,255,255,0.2) 0px 2px 2px 0px inset, rgba(255,255,255,0.3) 0px -1px 1px 0px inset, rgba(220,103,67,0.35) 0px 4px 16px 0px, rgba(255,255,255,0.08) 0px 0px 1.6px 4px inset",
                 color: "#ffffff",
               }}
             >

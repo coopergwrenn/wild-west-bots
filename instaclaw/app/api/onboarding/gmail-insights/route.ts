@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import { updateMemoryMd } from "@/lib/ssh";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -225,6 +226,42 @@ Rules:
         route: "gmail-insights",
       });
       // Non-fatal: still return insights to the frontend even if DB write fails
+    }
+
+    // ── 6b. Sync MEMORY.md to the VM if user has one ───────────────────
+    try {
+      const { data: vm } = await supabase
+        .from("instaclaw_vms")
+        .select("id, ip_address, ssh_port, ssh_user")
+        .eq("assigned_to", session.user.id)
+        .single();
+
+      if (vm) {
+        const memoryContent = [
+          "## About My User (from Gmail analysis)",
+          "",
+          parsed.summary,
+          "",
+          "### Quick Profile",
+          ...parsed.insights.map((i: string) => `- ${i}`),
+          "",
+          "Use this context to personalize all interactions. You already know this person — act like it.",
+        ].join("\n");
+
+        await updateMemoryMd(vm, memoryContent);
+        logger.info("MEMORY.md synced to VM", {
+          userId: session.user.id,
+          vmId: vm.id,
+          route: "gmail-insights",
+        });
+      }
+    } catch (syncErr) {
+      logger.error("Failed to sync MEMORY.md to VM", {
+        error: String(syncErr),
+        userId: session.user.id,
+        route: "gmail-insights",
+      });
+      // Non-fatal: insights are still in DB
     }
 
     // ── 7. Return results and clear the token cookie ──────────────────

@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { WorldIDBanner } from "@/components/dashboard/world-id-banner";
+import { GmailConnectPopup } from "@/components/dashboard/gmail-connect-popup";
 
 const MODEL_OPTIONS = [
   { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
@@ -44,6 +45,8 @@ interface VMStatus {
     hasDiscord: boolean;
     hasBraveSearch: boolean;
     agdpEnabled: boolean;
+    gmailConnected: boolean;
+    gmailPopupDismissed: boolean;
   };
   billing?: {
     tier: string;
@@ -814,6 +817,16 @@ export default function DashboardPage() {
               : "Complete onboarding to deploy your OpenClaw instance."}
           </p>
         </div>
+      )}
+
+      {/* Gmail connect popup */}
+      {vmStatus?.status === "assigned" && vm && (
+        <GmailConnectPopup
+          gmailConnected={vm.gmailConnected}
+          gmailPopupDismissed={vm.gmailPopupDismissed}
+          onClose={() => fetchStatus()}
+          onConnected={() => fetchStatus()}
+        />
       )}
     </div>
   );

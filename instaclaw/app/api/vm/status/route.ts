@@ -72,10 +72,10 @@ export async function GET() {
         };
       }
 
-      // Fetch World ID verification status
+      // Fetch World ID verification status + Gmail connection status
       const { data: userProfile } = await supabase
         .from("instaclaw_users")
-        .select("world_id_verified, world_id_verification_level, world_id_verified_at")
+        .select("world_id_verified, world_id_verification_level, world_id_verified_at, gmail_connected, gmail_popup_dismissed")
         .eq("id", session.user.id)
         .single();
 
@@ -100,6 +100,8 @@ export async function GET() {
           worldIdVerified: userProfile?.world_id_verified ?? false,
           worldIdVerificationLevel: userProfile?.world_id_verification_level ?? null,
           worldIdVerifiedAt: userProfile?.world_id_verified_at ?? null,
+          gmailConnected: userProfile?.gmail_connected ?? false,
+          gmailPopupDismissed: userProfile?.gmail_popup_dismissed ?? false,
         },
         billing,
       });
