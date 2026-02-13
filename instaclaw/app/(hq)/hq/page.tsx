@@ -8,6 +8,8 @@ import {
   GripVertical,
   Pencil,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -53,17 +55,40 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   return res.json();
 }
 
+// ── Helpers for column navigation ──────────────────────────────────────
+
+const COLUMN_IDS: string[] = COLUMNS.map((c) => c.id);
+
+function getPrevColumn(status: string): string | null {
+  const idx = COLUMN_IDS.indexOf(status);
+  return idx > 0 ? COLUMN_IDS[idx - 1] : null;
+}
+
+function getNextColumn(status: string): string | null {
+  const idx = COLUMN_IDS.indexOf(status);
+  return idx < COLUMN_IDS.length - 1 ? COLUMN_IDS[idx + 1] : null;
+}
+
+function getColumnLabel(id: string): string {
+  return COLUMNS.find((c) => c.id === id)?.label || id;
+}
+
 // ── Task Card ──────────────────────────────────────────────────────────
 
 function TaskCard({
   task,
   onEdit,
   onDelete,
+  onMove,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
+  onMove: (taskId: string, newStatus: string) => void;
 }) {
+  const prev = getPrevColumn(task.status);
+  const next = getNextColumn(task.status);
+
   return (
     <motion.div
       layout
@@ -127,6 +152,34 @@ function TaskCard({
           </button>
         </div>
       </div>
+
+      {/* Mobile: move buttons */}
+      <div className="flex sm:hidden items-center justify-between mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+        {prev ? (
+          <button
+            onClick={() => onMove(task.id, prev)}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors active:bg-black/5"
+            style={{ color: "var(--muted)" }}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            {getColumnLabel(prev)}
+          </button>
+        ) : (
+          <span />
+        )}
+        {next ? (
+          <button
+            onClick={() => onMove(task.id, next)}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors active:bg-black/5"
+            style={{ color: "var(--muted)" }}
+          >
+            {getColumnLabel(next)}
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <span />
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -139,6 +192,7 @@ function Column({
   onDrop,
   onEdit,
   onDelete,
+  onMove,
   hideBorder,
 }: {
   column: (typeof COLUMNS)[number];
@@ -146,6 +200,7 @@ function Column({
   onDrop: (taskId: string, newStatus: string) => void;
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
+  onMove: (taskId: string, newStatus: string) => void;
   hideBorder?: boolean;
 }) {
   const [over, setOver] = useState(false);
@@ -183,7 +238,7 @@ function Column({
       <div className="flex flex-col gap-2 flex-1">
         <AnimatePresence mode="popLayout">
           {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} onEdit={onEdit} onDelete={onDelete} />
+            <TaskCard key={t.id} task={t} onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
           ))}
         </AnimatePresence>
         {tasks.length === 0 && (
@@ -463,6 +518,9 @@ export default function HQPage() {
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
 
+    // On mobile, follow the task to its new column
+    setMobileTab(newStatus);
+
     try {
       await api(`/api/hq/tasks/${taskId}`, {
         method: "PATCH",
@@ -536,6 +594,7 @@ export default function HQPage() {
           onDrop={handleDrop}
           onEdit={openEdit}
           onDelete={handleDelete}
+          onMove={handleDrop}
           hideBorder
         />
       </div>
@@ -550,6 +609,7 @@ export default function HQPage() {
             onDrop={handleDrop}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onMove={handleDrop}
           />
         ))}
       </div>
