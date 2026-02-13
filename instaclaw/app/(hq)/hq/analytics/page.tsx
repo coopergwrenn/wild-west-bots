@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Globe,
   Building2,
+  Maximize2,
+  X,
 } from "lucide-react";
 import { WorldMap } from "@/components/hq/world-map";
 
@@ -97,11 +99,61 @@ interface UserJourney {
   events: { event: string; url: string; timestamp: string }[];
 }
 
+function JourneyList({ journeys, maxHeight }: { journeys: UserJourney[]; maxHeight?: number }) {
+  return (
+    <div className="space-y-4 overflow-y-auto" style={maxHeight ? { maxHeight } : undefined}>
+      {journeys.map((journey) => (
+        <div key={journey.userId}>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: journey.color }}
+            />
+            <span className="text-xs font-medium">{journey.label}</span>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>
+              &middot; {journey.events.length} {journey.events.length === 1 ? "event" : "events"}
+            </span>
+          </div>
+          <div className="ml-1 border-l-2 pl-3 space-y-0.5" style={{ borderColor: journey.color + "40" }}>
+            {journey.events.map((ev, i) => {
+              const { label, color } = eventLabel(ev.event);
+              const path = ev.url ? (() => { try { return new URL(ev.url).pathname; } catch { return ev.url; } })() : null;
+              return (
+                <div
+                  key={`${ev.timestamp}-${i}`}
+                  className="flex items-center gap-2 py-1 text-xs"
+                >
+                  <span
+                    className="shrink-0 px-2 py-0.5 rounded-full font-medium"
+                    style={{
+                      background: color === "accent" ? "rgba(220, 103, 67, 0.1)" : "rgba(0,0,0,0.04)",
+                      color: color === "accent" ? "var(--accent)" : "var(--muted)",
+                    }}
+                  >
+                    {label}
+                  </span>
+                  {path && (
+                    <span className="truncate" style={{ color: "var(--muted)" }}>{path}</span>
+                  )}
+                  <span className="shrink-0 ml-auto" style={{ color: "var(--muted)", opacity: 0.6 }}>
+                    {timeAgo(ev.timestamp)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [geoTab, setGeoTab] = useState<"countries" | "cities">("countries");
+  const [journeysExpanded, setJourneysExpanded] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -454,66 +506,69 @@ export default function AnalyticsPage() {
 
       {/* User Journeys */}
       <div className="glass rounded-xl p-4 sm:p-5">
-        <h2
-          className="text-base font-normal tracking-[-0.3px] mb-3"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          User Journeys
-          <span className="text-xs ml-2" style={{ color: "var(--muted)", fontFamily: "inherit" }}>
-            Last 24 hours
-          </span>
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2
+            className="text-base font-normal tracking-[-0.3px]"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
+            User Journeys
+            <span className="text-xs ml-2" style={{ color: "var(--muted)", fontFamily: "inherit" }}>
+              Last 24 hours
+            </span>
+          </h2>
+          {journeys.length > 0 && (
+            <button
+              onClick={() => setJourneysExpanded(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors hover:opacity-80"
+              style={{ background: "rgba(0,0,0,0.04)", color: "var(--muted)" }}
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              Expand
+            </button>
+          )}
+        </div>
         {journeys.length === 0 ? (
           <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>No activity yet</p>
         ) : (
-          <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 480 }}>
-            {journeys.map((journey) => (
-              <div key={journey.userId}>
-                {/* User header */}
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: journey.color }}
-                  />
-                  <span className="text-xs font-medium">{journey.label}</span>
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>
-                    &middot; {journey.events.length} {journey.events.length === 1 ? "event" : "events"}
-                  </span>
-                </div>
-                {/* Timeline */}
-                <div className="ml-1 border-l-2 pl-3 space-y-0.5" style={{ borderColor: journey.color + "40" }}>
-                  {journey.events.map((ev, i) => {
-                    const { label, color } = eventLabel(ev.event);
-                    const path = ev.url ? (() => { try { return new URL(ev.url).pathname; } catch { return ev.url; } })() : null;
-                    return (
-                      <div
-                        key={`${ev.timestamp}-${i}`}
-                        className="flex items-center gap-2 py-1 text-xs"
-                      >
-                        <span
-                          className="shrink-0 px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            background: color === "accent" ? "rgba(220, 103, 67, 0.1)" : "rgba(0,0,0,0.04)",
-                            color: color === "accent" ? "var(--accent)" : "var(--muted)",
-                          }}
-                        >
-                          {label}
-                        </span>
-                        {path && (
-                          <span className="truncate" style={{ color: "var(--muted)" }}>{path}</span>
-                        )}
-                        <span className="shrink-0 ml-auto" style={{ color: "var(--muted)", opacity: 0.6 }}>
-                          {timeAgo(ev.timestamp)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+          <JourneyList journeys={journeys} maxHeight={480} />
         )}
       </div>
+
+      {/* Expanded Journeys Modal */}
+      {journeysExpanded && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setJourneysExpanded(false); }}
+        >
+          <div
+            className="glass rounded-2xl p-5 sm:p-6 w-full relative"
+            style={{ maxWidth: 900, maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2
+                className="text-lg font-normal tracking-[-0.3px]"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                User Journeys
+                <span className="text-xs ml-2" style={{ color: "var(--muted)", fontFamily: "inherit" }}>
+                  Last 24 hours &middot; {journeys.length} {journeys.length === 1 ? "visitor" : "visitors"}
+                </span>
+              </h2>
+              <button
+                onClick={() => setJourneysExpanded(false)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors hover:opacity-80"
+                style={{ background: "rgba(0,0,0,0.06)" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <JourneyList journeys={journeys} />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
