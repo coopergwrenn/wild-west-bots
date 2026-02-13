@@ -354,8 +354,11 @@ function DeployingPageContent() {
               clearInterval(interval);
               setTimeout(() => router.push("/dashboard"), 1500);
             } else {
-              // "configuring" or "unknown" — health check in progress
+              // "configuring" or "unknown" — actively trigger health check
               updateStep("health", "active");
+              fetch("/api/vm/health-check-now", { method: "POST" }).catch(
+                () => {}
+              );
             }
           } else {
             // No gateway URL yet — configure still running
