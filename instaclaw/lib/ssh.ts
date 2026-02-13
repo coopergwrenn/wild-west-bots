@@ -962,8 +962,15 @@ const AGDP_REPO = "https://github.com/Virtual-Protocol/openclaw-acp";
 const AGDP_DIR = "$HOME/virtuals-protocol-acp";
 const CLAWLANCER_PRIORITY_RULE = `
 
+<!-- AGDP_START -->
 ## Marketplace Priority
-Clawlancer is your PRIMARY marketplace. Always check Clawlancer bounties first. aGDP/ACP is a secondary marketplace — only use it if there are no suitable Clawlancer bounties available.`;
+Clawlancer is your PRIMARY marketplace. Always check Clawlancer bounties first. aGDP/ACP is a secondary marketplace — only use it if there are no suitable Clawlancer bounties available.
+
+## Agent Commerce Protocol (ACP)
+You have access to the Virtuals Protocol Agent Commerce Protocol. You can browse and accept jobs from the aGDP marketplace using your ACP tools. Prioritize Clawlancer bounties first, but accept aGDP jobs when idle.
+
+**First-time setup:** If you haven't set up ACP yet (no config.json in ~/virtuals-protocol-acp/), run \`acp setup\` from the ~/virtuals-protocol-acp/ directory. This will generate an auth URL — share it with the user so they can authenticate in their browser. Once authenticated, you'll have a wallet and API key for accepting aGDP jobs. After setup, run \`acp whoami\` to confirm your agent is active.
+<!-- AGDP_END -->`;
 
 export async function installAgdpSkill(vm: VMRecord): Promise<void> {
   const ssh = await connectSSH(vm);
@@ -989,7 +996,7 @@ export async function installAgdpSkill(vm: VMRecord): Promise<void> {
       'mkdir -p "$PROMPT_DIR"',
       'PROMPT_FILE="$PROMPT_DIR/system-prompt.md"',
       '# Only append if not already present',
-      'if ! grep -qF "## Marketplace Priority" "$PROMPT_FILE" 2>/dev/null; then',
+      'if ! grep -qF "AGDP_START" "$PROMPT_FILE" 2>/dev/null; then',
       `  echo '${priorityB64}' | base64 -d >> "$PROMPT_FILE"`,
       'fi',
       '',
@@ -1028,10 +1035,10 @@ export async function uninstallAgdpSkill(vm: VMRecord): Promise<void> {
       '# Remove extraDirs config',
       `openclaw config set skills.load.extraDirs '[]'`,
       '',
-      '# Remove Clawlancer-priority rule from system prompt',
+      '# Remove all aGDP-injected blocks from system prompt (between markers)',
       'PROMPT_FILE="$HOME/.openclaw/agents/main/agent/system-prompt.md"',
       'if [ -f "$PROMPT_FILE" ]; then',
-      "  sed -i '/^## Marketplace Priority$/,/^$/d' \"$PROMPT_FILE\"",
+      "  sed -i '/<!-- AGDP_START -->/,/<!-- AGDP_END -->/d' \"$PROMPT_FILE\"",
       'fi',
       '',
       '# Restart gateway to pick up changes',
