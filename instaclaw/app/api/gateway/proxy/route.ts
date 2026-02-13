@@ -33,7 +33,10 @@ function modelFamily(model: string): string {
  * message. OpenClaw treats this as a normal assistant reply, so the user
  * sees a natural chat message instead of a raw error.
  */
-function friendlyAssistantResponse(text: string, model: string) {
+function friendlyAssistantResponse(text: string, model: string, stream: boolean) {
+  if (stream) {
+    return friendlyStreamResponse(text, model);
+  }
   return NextResponse.json(
     {
       id: "msg_limit_" + Date.now(),
@@ -47,6 +50,41 @@ function friendlyAssistantResponse(text: string, model: string) {
     },
     { status: 200 }
   );
+}
+
+/**
+ * Build a valid Anthropic SSE stream containing a friendly text message.
+ * Required when the OpenClaw gateway sends stream:true — returning plain
+ * JSON to a streaming request causes "request ended without sending any chunks".
+ */
+function friendlyStreamResponse(text: string, model: string) {
+  const msgId = "msg_limit_" + Date.now();
+  const events = [
+    `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id: msgId, type: "message", role: "assistant", content: [], model, stop_reason: null, stop_sequence: null, usage: { input_tokens: 0, output_tokens: 0 } } })}\n\n`,
+    `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}\n\n`,
+    `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } })}\n\n`,
+    `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}\n\n`,
+    `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 1 } })}\n\n`,
+    `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
+  ];
+
+  const body = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+      for (const event of events) {
+        controller.enqueue(encoder.encode(event));
+      }
+      controller.close();
+    },
+  });
+
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+    },
+  });
 }
 
 /**
@@ -127,12 +165,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- Parse request body to extract model ---
+    // --- Parse request body to extract model and stream flag ---
     const body = await req.text();
     let requestedModel: string;
+    let isStreaming = false;
     try {
       const parsed = JSON.parse(body);
       requestedModel = parsed.model || vm.default_model || "claude-haiku-4-5-20251001";
+      isStreaming = parsed.stream === true;
     } catch {
       requestedModel = vm.default_model || "claude-haiku-4-5-20251001";
     }
@@ -171,7 +211,8 @@ export async function POST(req: NextRequest) {
 
       return friendlyAssistantResponse(
         "Hey! The platform is at capacity for today. Service resets at midnight UTC. In the meantime, you can switch to Haiku for basic tasks — just ask me to \"use Haiku\" and I'll switch models.\n\nSorry about the wait!",
-        requestedModel
+        requestedModel,
+        isStreaming
       );
     }
 
@@ -198,7 +239,8 @@ export async function POST(req: NextRequest) {
     if (limitResult && !limitResult.allowed) {
       return friendlyAssistantResponse(
         `You've hit your daily limit (${limitResult.count}/${limitResult.limit} units). Your limit resets at midnight UTC.\n\nWant to keep going? Grab a credit pack — they kick in instantly:\n\nhttps://instaclaw.io/dashboard?buy=credits`,
-        requestedModel
+        requestedModel,
+        isStreaming
       );
     }
 
@@ -234,8 +276,11 @@ export async function POST(req: NextRequest) {
       body,
     });
 
-    // If no usage warning needed, stream response directly (no overhead)
-    if (!usageWarning) {
+    // If streaming or no usage warning needed, pass through the response directly.
+    // Streaming responses are SSE text that can't be JSON-parsed, so we never
+    // try to buffer/modify them — that was causing "request ended without sending
+    // any chunks" when the buffered SSE was returned as a single JSON blob.
+    if (isStreaming || !usageWarning) {
       return new NextResponse(anthropicRes.body, {
         status: anthropicRes.status,
         headers: {
@@ -244,7 +289,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Append usage warning to the AI response
+    // Non-streaming: append usage warning to the AI response
     const resText = await anthropicRes.text();
     try {
       const resBody = JSON.parse(resText);
