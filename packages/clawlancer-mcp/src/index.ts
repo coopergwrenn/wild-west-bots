@@ -167,12 +167,16 @@ server.registerTool("list_agents", {
 server.registerTool("list_bounties", {
   title: "List Bounties",
   description:
-    "Browse available bounties/listings on the marketplace. Filter by category, skill, price, or keyword.",
+    "Browse available bounties and listings on the marketplace. By default shows BOUNTY listings (work you can claim and earn from). Set listing_type to 'ALL' to see everything, or 'FIXED' for services you can buy.",
   inputSchema: {
     category: z
       .enum(["research", "writing", "coding", "analysis", "design", "data", "other"])
       .optional()
       .describe("Filter by category"),
+    listing_type: z
+      .enum(["BOUNTY", "FIXED", "ALL"])
+      .optional()
+      .describe("BOUNTY = work you can claim and earn USDC. FIXED = services for sale. ALL = both. Default: BOUNTY"),
     skill: z.string().optional().describe("Filter by required skill"),
     keyword: z.string().optional().describe("Search title/description"),
     min_price_usdc: z.string().optional().describe("Minimum price in USDC (e.g. '1.00')"),
@@ -191,9 +195,24 @@ server.registerTool("list_bounties", {
   if (args.min_price_usdc) params.set("min_price", usdcToWei(args.min_price_usdc));
   if (args.max_price_usdc) params.set("max_price", usdcToWei(args.max_price_usdc));
   if (args.sort) params.set("sort", args.sort);
+  // Default to BOUNTY only (work you can claim). Use ALL to see everything.
+  const listingType = args.listing_type || "BOUNTY";
+  if (listingType !== "ALL") params.set("listing_type", listingType);
   params.set("limit", String(args.limit || 20));
-  const data = await api(`/api/listings?${params}`, { auth: false });
-  return text(data);
+  const raw = await api(`/api/listings?${params}`, { auth: false }) as { listings?: Array<Record<string, unknown>> };
+
+  // Add human-readable type labels
+  if (raw.listings) {
+    for (const l of raw.listings) {
+      l.type_label = l.listing_type === "BOUNTY"
+        ? "BOUNTY — work you can claim to earn USDC"
+        : "FIXED — service for sale (you pay to buy)";
+      if (l.price_wei) {
+        l.price_usdc_display = `$${(Number(l.price_wei) / 1e6).toFixed(4)} USDC`;
+      }
+    }
+  }
+  return text(raw);
 });
 
 server.registerTool("get_bounty", {

@@ -20,6 +20,8 @@ import { safeOracleRelease } from '@/lib/oracle/retry';
 import { sendAlert } from '@/lib/monitoring/alerts';
 import { createReputationFeedback } from '@/lib/erc8004/reputation';
 import { uuidToBytes32, ESCROW_V2_ABI } from '@/lib/blockchain/escrow-v2';
+import { notifyPaymentReceived } from '@/lib/notifications/create';
+import { fireAgentWebhook } from '@/lib/webhooks/send-webhook';
 
 const isTestnet = process.env.NEXT_PUBLIC_CHAIN === 'sepolia';
 const CHAIN = isTestnet ? baseSepolia : base;
@@ -65,10 +67,10 @@ export async function POST(request: NextRequest) {
     .select()
     .single();
 
-  // Find delivered transactions using V2 contract
+  // Find delivered transactions using V2 contract (include agent names for notifications)
   const { data: deliveredTxs, error } = await supabase
     .from('transactions')
-    .select('*')
+    .select('*, buyer:agents!buyer_agent_id(id, name), seller:agents!seller_agent_id(id, name)')
     .eq('state', 'DELIVERED')
     .eq('disputed', false)
     .eq('contract_version', 2)
@@ -120,25 +122,42 @@ export async function POST(request: NextRequest) {
         ? tx.escrow_id as `0x${string}`
         : uuidToBytes32(tx.escrow_id);
 
-      // Check if auto-release is ready ON-CHAIN
-      const isReady = await publicClient.readContract({
-        address: ESCROW_V2_ADDRESS,
-        abi: ESCROW_V2_ABI,
-        functionName: 'isAutoReleaseReady',
-        args: [escrowIdBytes32]
-      });
+      // Oracle-funded escrows skip on-chain markDelivered(), so their on-chain
+      // state stays FUNDED. isAutoReleaseReady() checks for on-chain DELIVERED
+      // state and would always return false. Instead, check dispute window via DB.
+      if (tx.oracle_funded) {
+        const windowHours = tx.dispute_window_hours || 24;
+        const deliveredAt = new Date(tx.delivered_at).getTime();
+        const windowEnd = deliveredAt + windowHours * 60 * 60 * 1000;
 
-      if (!isReady) {
-        results.push({ txId: tx.id, status: 'not_ready' });
-        continue;
+        if (Date.now() < windowEnd) {
+          results.push({ txId: tx.id, status: 'not_ready' });
+          continue;
+        }
+      } else {
+        // Non-oracle-funded: check on-chain readiness (DELIVERED + window passed)
+        const isReady = await publicClient.readContract({
+          address: ESCROW_V2_ADDRESS,
+          abi: ESCROW_V2_ABI,
+          functionName: 'isAutoReleaseReady',
+          args: [escrowIdBytes32]
+        });
+
+        if (!isReady) {
+          results.push({ txId: tx.id, status: 'not_ready' });
+          continue;
+        }
       }
 
-      // Execute release with retry logic and idempotency check
+      // Execute release with retry logic and idempotency check.
+      // For oracle-funded txs (on-chain FUNDED), use safeOracleRelease with
+      // allowFunded flag. For standard txs (on-chain DELIVERED), use default.
       const releaseResult = await safeOracleRelease(
         escrowIdBytes32,
         publicClient,
         walletClient,
-        ESCROW_V2_ADDRESS
+        ESCROW_V2_ADDRESS,
+        tx.oracle_funded
       );
 
       if (!releaseResult.success) {
@@ -147,7 +166,7 @@ export async function POST(request: NextRequest) {
           results.push({ txId: tx.id, status: 'already_released' });
           await supabase
             .from('transactions')
-            .update({ state: 'RELEASED', updated_at: new Date().toISOString() })
+            .update({ state: 'RELEASED', completed_at: new Date().toISOString() })
             .eq('id', tx.id);
           continue;
         }
@@ -165,7 +184,7 @@ export async function POST(request: NextRequest) {
         .update({
           state: 'RELEASED',
           release_tx_hash: hash,
-          updated_at: new Date().toISOString()
+          completed_at: new Date().toISOString()
         })
         .eq('id', tx.id);
 
@@ -192,6 +211,33 @@ export async function POST(request: NextRequest) {
       // Feed event is created automatically by DB trigger (create_transaction_feed_event)
       // when transaction state changes to RELEASED — no manual insert needed
 
+      // Notify seller that payment was received
+      const sellerAmount = (BigInt(tx.price_wei || tx.amount_wei) * BigInt(9900) / BigInt(10000)).toString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txBuyer = tx.buyer as any;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const txSeller = tx.seller as any;
+      notifyPaymentReceived(
+        tx.seller_agent_id,
+        txBuyer?.name || 'Buyer',
+        tx.listing_title || 'Transaction',
+        sellerAmount,
+        tx.id
+      ).catch(() => {});
+
+      // Fire bounty_completed webhook so agent knows they've been paid
+      fireAgentWebhook(tx.seller_agent_id, 'bounty_completed', {
+        event: 'bounty_completed',
+        transaction_id: tx.id,
+        bounty_title: tx.listing_title || 'Transaction',
+        amount_earned: sellerAmount,
+        tx_hash: hash,
+        buyer_name: txBuyer?.name || 'Buyer',
+        bounty_url: tx.listing_id
+          ? `https://clawlancer.ai/marketplace/${tx.listing_id}`
+          : 'https://clawlancer.ai/marketplace',
+      }).catch(() => {});
+
       results.push({ txId: tx.id, status: 'released', hash });
 
     } catch (error) {
@@ -202,8 +248,7 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('transactions')
         .update({
-          release_failures: (tx.release_failures || 0) + 1,
-          updated_at: new Date().toISOString()
+          release_failures: (tx.release_failures || 0) + 1
         })
         .eq('id', tx.id);
 

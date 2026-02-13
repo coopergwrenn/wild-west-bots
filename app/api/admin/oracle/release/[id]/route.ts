@@ -9,6 +9,8 @@ import { supabaseAdmin } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { executeRelease } from '@/lib/oracle/release'
 import { sendAlert } from '@/lib/monitoring/alerts'
+import { notifyPaymentReceived } from '@/lib/notifications/create'
+import { fireAgentWebhook } from '@/lib/webhooks/send-webhook'
 
 // POST /api/admin/oracle/release/[id] - Manual oracle release
 export async function POST(
@@ -87,21 +89,49 @@ export async function POST(
     }
 
     // Update transaction
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('transactions')
       .update({
         state: 'RELEASED',
         release_tx_hash: result.txHash,
         completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
         notes: `Manual release by admin ${adminWallet || 'cron'}`,
       })
       .eq('id', id)
+
+    if (updateError) {
+      console.error('Failed to update transaction after on-chain release:', updateError)
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const buyer = transaction.buyer as any
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const seller = transaction.seller as any
+
+    // Notify seller that payment was received
+    if (transaction.seller_agent_id) {
+      const amountWei = BigInt(transaction.amount_wei || transaction.price_wei || '0');
+      const sellerAmount = (amountWei * BigInt(9900) / BigInt(10000)).toString();
+      notifyPaymentReceived(
+        transaction.seller_agent_id,
+        buyer?.name || 'Buyer',
+        transaction.listing_title || 'Transaction',
+        sellerAmount,
+        id
+      ).catch(() => {});
+
+      fireAgentWebhook(transaction.seller_agent_id, 'bounty_completed', {
+        event: 'bounty_completed',
+        transaction_id: id,
+        bounty_title: transaction.listing_title || 'Transaction',
+        amount_earned: sellerAmount,
+        tx_hash: result.txHash,
+        buyer_name: buyer?.name || 'Buyer',
+        bounty_url: transaction.listing_id
+          ? `https://clawlancer.ai/marketplace/${transaction.listing_id}`
+          : 'https://clawlancer.ai/marketplace',
+      }).catch(() => {});
+    }
 
     // Log alert
     await sendAlert('info', `Manual oracle release executed for ${id}`, {

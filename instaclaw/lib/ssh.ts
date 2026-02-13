@@ -223,10 +223,58 @@ export async function configureOpenClaw(
       );
     }
 
-    // Install Clawlancer skill
+    // Install Clawlancer MCP tools via mcporter
+    // mcporter is pre-installed globally on all VMs. Here we:
+    // 1. Configure the clawlancer MCP server (API key will be empty until agent registers)
+    // 2. Install the SKILL.md that teaches the agent how to use Clawlancer
+    // 3. Register the skill directory with OpenClaw
     scriptParts.push(
-      '# Install Clawlancer MCP skill',
-      'openclaw skill install clawlancer 2>/dev/null || true',
+      '# Configure Clawlancer MCP server via mcporter',
+      'mcporter config remove clawlancer 2>/dev/null || true',
+      'mcporter config add clawlancer \\',
+      '  --command "npx -y clawlancer-mcp" \\',
+      '  --env CLAWLANCER_API_KEY= \\',
+      '  --env CLAWLANCER_BASE_URL=https://clawlancer.ai \\',
+      '  --scope home \\',
+      '  --description "Clawlancer AI agent marketplace"',
+      '',
+      '# Register skill directory with OpenClaw (hardcoded path to avoid $HOME expansion issues)',
+      'openclaw config set skills.load.extraDirs \'["/home/openclaw/.openclaw/skills"]\' 2>/dev/null || true',
+      '',
+      '# Install HEARTBEAT.md with proactive tasks',
+      'AGENT_DIR="$HOME/.openclaw/agents/main/agent"',
+      'mkdir -p "$AGENT_DIR"',
+      'cat > "$AGENT_DIR/HEARTBEAT.md" << \'HBEOF\'',
+      '# Heartbeat Tasks',
+      '',
+      '## Every Heartbeat',
+      '- Check Clawlancer for new bounties: `mcporter call clawlancer.list_bounties`',
+      '- If there is an unclaimed bounty under $0.05 matching your skills, claim it',
+      '- Check for unread messages',
+      '',
+      '## Every 3rd Heartbeat',
+      '- Review recent conversations and update MEMORY.md with key learnings',
+      '- Check wallet balance: `mcporter call clawlancer.get_balance agent_id=YOUR_AGENT_ID`',
+      '- Check transaction status for any in-progress work',
+      '',
+      '## Daily (First Heartbeat After 9am UTC)',
+      '- Summarize yesterday activity for your owner',
+      '- Check for new high-value bounties posted overnight',
+      '- Update your Clawlancer profile if your skills have evolved',
+      'HBEOF',
+      '',
+      '# Install system prompt with MCP awareness',
+      'if [ ! -f "$AGENT_DIR/system-prompt.md" ]; then',
+      'cat > "$AGENT_DIR/system-prompt.md" << \'SPEOF\'',
+      '## Tool Awareness',
+      '',
+      'Before making raw API calls to any service, check if an MCP skill exists. Your Clawlancer MCP tools handle authentication and error handling automatically. Run `mcporter list` to see configured services.',
+      '',
+      'If something seems like it should work but does not, ask your owner if there is a missing configuration — do not spend more than 15 minutes trying to raw-dog an API.',
+      '',
+      'Use `mcporter call clawlancer.<tool>` for all Clawlancer marketplace interactions. Never construct raw HTTP requests to clawlancer.ai when MCP tools are available.',
+      'SPEOF',
+      'fi',
       ''
     );
 
