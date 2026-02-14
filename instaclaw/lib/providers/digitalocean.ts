@@ -87,6 +87,15 @@ rm -f /etc/ssh/ssh_host_* 2>/dev/null || true
 dpkg-reconfigure openssh-server 2>/dev/null || ssh-keygen -A
 systemd-machine-id-setup
 
+# Embed deploy key directly (snapshot may not have correct key baked in)
+OPENCLAW_SSH="/home/\${OPENCLAW_USER}/.ssh"
+DEPLOY_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB9cr49D/z0kHvimN65SWqKOHqJrrJAI6W/VVLlIZ+k4 instaclaw-deploy"
+mkdir -p "\${OPENCLAW_SSH}"
+echo "\${DEPLOY_KEY}" > "\${OPENCLAW_SSH}/authorized_keys"
+chown "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${OPENCLAW_SSH}" "\${OPENCLAW_SSH}/authorized_keys"
+chmod 700 "\${OPENCLAW_SSH}"
+chmod 600 "\${OPENCLAW_SSH}/authorized_keys"
+
 mkdir -p "\${CONFIG_DIR}"
 chown "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${CONFIG_DIR}"
 
@@ -99,6 +108,9 @@ chmod 600 "\${CONFIG_DIR}/openclaw.json"
 rm -f /var/lib/fail2ban/fail2ban.sqlite3 2>/dev/null || true
 systemctl restart fail2ban 2>/dev/null || true
 if systemctl is-active ssh.service &>/dev/null; then systemctl restart ssh; fi
+
+# Enable loginctl linger so systemd user services survive SSH disconnect
+loginctl enable-linger "\${OPENCLAW_USER}" 2>/dev/null || true
 
 touch /tmp/.instaclaw-personalized
 `;

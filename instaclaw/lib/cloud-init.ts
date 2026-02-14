@@ -29,9 +29,16 @@ if ! id -u "\${OPENCLAW_USER}" &>/dev/null; then
   chmod 440 /etc/sudoers.d/\${OPENCLAW_USER}
 fi
 
-# ── 2. Copy SSH authorized keys from root → openclaw ──
+# Enable loginctl linger so systemd user services survive SSH disconnect
+loginctl enable-linger "\${OPENCLAW_USER}" 2>/dev/null || true
+
+# ── 2. Copy SSH authorized keys from root → openclaw, then embed deploy key as fallback ──
 mkdir -p "\${OPENCLAW_HOME}/.ssh"
-cp /root/.ssh/authorized_keys "\${OPENCLAW_HOME}/.ssh/authorized_keys"
+cp /root/.ssh/authorized_keys "\${OPENCLAW_HOME}/.ssh/authorized_keys" 2>/dev/null || true
+DEPLOY_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB9cr49D/z0kHvimN65SWqKOHqJrrJAI6W/VVLlIZ+k4 instaclaw-deploy"
+if ! grep -qF "\${DEPLOY_KEY}" "\${OPENCLAW_HOME}/.ssh/authorized_keys" 2>/dev/null; then
+  echo "\${DEPLOY_KEY}" >> "\${OPENCLAW_HOME}/.ssh/authorized_keys"
+fi
 chown -R "\${OPENCLAW_USER}:\${OPENCLAW_USER}" "\${OPENCLAW_HOME}/.ssh"
 chmod 700 "\${OPENCLAW_HOME}/.ssh"
 chmod 600 "\${OPENCLAW_HOME}/.ssh/authorized_keys"
