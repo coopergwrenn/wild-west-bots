@@ -291,20 +291,31 @@ export async function configureOpenClaw(
       '# Install system prompt (with embedded memory if available)',
     );
 
-    // Build the system prompt — if Gmail profile data is available, embed it directly
-    // so the agent always has owner context without needing to read a separate file.
+    // OpenClaw reads USER.md, MEMORY.md, BOOTSTRAP.md from the workspace directory.
+    // Write profile data there so the agent actually sees it.
+    const workspaceDir = '$HOME/.openclaw/workspace';
+
     if (config.gmailProfileSummary) {
+      const memB64 = Buffer.from(config.gmailProfileSummary, 'utf-8').toString('base64');
+      const userMd = buildUserMd(config.gmailProfileSummary);
+      const userB64 = Buffer.from(userMd, 'utf-8').toString('base64');
       const systemPrompt = buildSystemPrompt(config.gmailProfileSummary);
       const promptB64 = Buffer.from(systemPrompt, 'utf-8').toString('base64');
+
       scriptParts.push(
-        `echo '${promptB64}' | base64 -d > "$AGENT_DIR/system-prompt.md"`,
+        '# Write profile to workspace (where OpenClaw reads from)',
+        `echo '${memB64}' | base64 -d > "${workspaceDir}/MEMORY.md"`,
+        `echo '${userB64}' | base64 -d > "${workspaceDir}/USER.md"`,
+        '# Remove BOOTSTRAP.md so agent skips the "who am I?" flow',
+        `rm -f "${workspaceDir}/BOOTSTRAP.md"`,
         '',
-        '# Also write MEMORY.md as standalone backup',
-        `echo '${Buffer.from(config.gmailProfileSummary, 'utf-8').toString('base64')}' | base64 -d > "$AGENT_DIR/MEMORY.md"`,
+        '# Also write to agent dir as backup + system-prompt.md',
+        `echo '${promptB64}' | base64 -d > "$AGENT_DIR/system-prompt.md"`,
+        `echo '${memB64}' | base64 -d > "$AGENT_DIR/MEMORY.md"`,
         ''
       );
     } else {
-      // No Gmail data yet — write a generic system prompt
+      // No Gmail data yet — write a generic system prompt to agent dir
       const genericPrompt = buildSystemPrompt('');
       const promptB64 = Buffer.from(genericPrompt, 'utf-8').toString('base64');
       scriptParts.push(
@@ -523,25 +534,44 @@ export async function updateMemoryMd(
 ): Promise<void> {
   const ssh = await connectSSH(vm);
   try {
+    const workspace = "$HOME/.openclaw/workspace";
     const agentDir = "$HOME/.openclaw/agents/main/agent";
 
-    // Write MEMORY.md as a standalone file (backup)
+    // OpenClaw reads USER.md, MEMORY.md, etc. from the workspace directory,
+    // NOT from the agent config directory. Write to both for safety.
+
+    // 1. Write MEMORY.md to workspace (primary — where the agent reads from)
     const memB64 = Buffer.from(content, "utf-8").toString("base64");
+    await ssh.execCommand(
+      `echo '${memB64}' | base64 -d > ${workspace}/MEMORY.md`
+    );
+
+    // 2. Build and write USER.md to workspace (structured profile for OpenClaw)
+    const userMd = buildUserMd(content);
+    const userB64 = Buffer.from(userMd, "utf-8").toString("base64");
+    await ssh.execCommand(
+      `echo '${userB64}' | base64 -d > ${workspace}/USER.md`
+    );
+
+    // 3. Remove BOOTSTRAP.md so the agent stops doing first-time "who am I?" flow
+    await ssh.execCommand(`rm -f ${workspace}/BOOTSTRAP.md`);
+
+    // 4. Also write to agent dir as backup + update system-prompt.md
     await ssh.execCommand(
       `mkdir -p ${agentDir} && echo '${memB64}' | base64 -d > ${agentDir}/MEMORY.md`
     );
-
-    // Rebuild system-prompt.md with memory embedded directly so the agent
-    // always has owner context in its system prompt without needing to read files
     const systemPrompt = buildSystemPrompt(content);
     const promptB64 = Buffer.from(systemPrompt, "utf-8").toString("base64");
     await ssh.execCommand(
       `echo '${promptB64}' | base64 -d > ${agentDir}/system-prompt.md`
     );
 
-    // Restart gateway to pick up the new prompt.
-    // Use "openclaw gateway stop" (the proper CLI command) then kill -9 as fallback,
-    // because pkill -f "openclaw gateway" doesn't match the "openclaw-gateway" binary.
+    // 5. Clear sessions so agent starts fresh with new context
+    await ssh.execCommand(
+      `rm -f $HOME/.openclaw/agents/main/sessions/*.jsonl $HOME/.openclaw/agents/main/sessions/sessions.json`
+    );
+
+    // 6. Restart gateway to pick up new files
     await ssh.execCommand(`${NVM_PREAMBLE} && openclaw gateway stop 2>/dev/null || true`);
     await new Promise((r) => setTimeout(r, 2000));
     await ssh.execCommand(`pkill -9 -f "openclaw-gateway" 2>/dev/null || true`);
@@ -598,6 +628,28 @@ Before making raw API calls to any service, check if an MCP skill exists. Your C
 If something seems like it should work but does not, ask your owner if there is a missing configuration — do not spend more than 15 minutes trying to raw-dog an API.
 
 Use \`mcporter call clawlancer.<tool>\` for all Clawlancer marketplace interactions. Never construct raw HTTP requests to clawlancer.ai when MCP tools are available.`;
+}
+
+/** Builds USER.md for the OpenClaw workspace from Gmail profile content. */
+function buildUserMd(profileContent: string): string {
+  // Extract first name from profile content (look for common patterns)
+  const nameMatch = profileContent.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s(?:is|works|lives)/m);
+  const fullName = nameMatch ? nameMatch[1] : "User";
+  const firstName = fullName.split(" ")[0];
+
+  return `# USER.md - About Your Human
+
+- **Name:** ${fullName}
+- **What to call them:** ${firstName}
+- **Notes:** Profile auto-populated from Gmail analysis
+
+## Context
+
+${profileContent}
+
+---
+
+The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.`;
 }
 
 export async function updateSystemPrompt(
