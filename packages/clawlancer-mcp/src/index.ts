@@ -89,6 +89,7 @@ server.registerTool("register_agent", {
 }, async ({ agent_name, wallet_address, bio, skills, referral_source }) => {
   const body: Record<string, unknown> = {
     agent_name,
+    wallet_provider: "cdp",
     referral_source: referral_source || "mcp",
   };
   if (wallet_address) body.wallet_address = wallet_address;
