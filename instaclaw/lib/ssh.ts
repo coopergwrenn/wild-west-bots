@@ -109,8 +109,7 @@ export async function configureOpenClaw(
     const channels = config.channels ?? ["telegram"];
 
     // Build the configure script — runs OpenClaw CLI commands natively (no Docker)
-    // Written to a temp file before execution so that pkill -f "openclaw gateway"
-    // does not self-match the SSH process (whose cmdline would contain the full script).
+    // Written to a temp file before execution to avoid pkill self-match issues.
     const scriptParts = [
       '#!/bin/bash',
       NVM_PREAMBLE,
@@ -120,7 +119,7 @@ export async function configureOpenClaw(
       '',
       '# Kill any existing gateway process (both the runner and the binary)',
       'pkill -f "openclaw-gateway" 2>/dev/null || true',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       '',
       '# Clear stale device pairing state (OpenClaw >=2026.2.9 requires device pairing)',
@@ -357,7 +356,7 @@ export async function configureOpenClaw(
       '',
       '# Restart gateway to pick up pairing approval',
       'pkill -f "openclaw-gateway" 2>/dev/null || true',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -504,7 +503,7 @@ export async function updateModel(vm: VMRecord, model: string): Promise<boolean>
       NVM_PREAMBLE,
       `openclaw config set agents.defaults.model.primary '${openclawModel}'`,
       '# Restart gateway to pick up new model',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 5',
@@ -540,13 +539,17 @@ export async function updateMemoryMd(
       `echo '${promptB64}' | base64 -d > ${agentDir}/system-prompt.md`
     );
 
-    // Restart gateway to pick up the new prompt
-    await ssh.execCommand(`${NVM_PREAMBLE} && pkill -f "openclaw gateway" 2>/dev/null || true`);
+    // Restart gateway to pick up the new prompt.
+    // Use "openclaw gateway stop" (the proper CLI command) then kill -9 as fallback,
+    // because pkill -f "openclaw gateway" doesn't match the "openclaw-gateway" binary.
+    await ssh.execCommand(`${NVM_PREAMBLE} && openclaw gateway stop 2>/dev/null || true`);
     await new Promise((r) => setTimeout(r, 2000));
+    await ssh.execCommand(`pkill -9 -f "openclaw-gateway" 2>/dev/null || true`);
+    await new Promise((r) => setTimeout(r, 1000));
     await ssh.execCommand(
       `${NVM_PREAMBLE} && nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`
     );
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 5000));
   } finally {
     ssh.dispose();
   }
@@ -621,7 +624,7 @@ export async function updateSystemPrompt(
     const script = [
       '#!/bin/bash',
       NVM_PREAMBLE,
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -663,7 +666,7 @@ export async function updateApiKey(
       'mkdir -p "$AUTH_DIR"',
       `echo '${authB64}' | base64 -d > "$AUTH_DIR/auth-profiles.json"`,
       '',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -817,7 +820,7 @@ export async function updateToolPermissions(
       '#!/bin/bash',
       NVM_PREAMBLE,
       ...commands,
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -990,7 +993,7 @@ export async function updateChannelToken(
       '#!/bin/bash',
       NVM_PREAMBLE,
       ...configCmds,
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -1009,7 +1012,7 @@ export async function restartGateway(vm: VMRecord): Promise<boolean> {
     const script = [
       '#!/bin/bash',
       NVM_PREAMBLE,
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'pkill -f "acp serve" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
@@ -1031,7 +1034,7 @@ export async function restartGateway(vm: VMRecord): Promise<boolean> {
 export async function stopGateway(vm: VMRecord): Promise<boolean> {
   const ssh = await connectSSH(vm);
   try {
-    const result = await ssh.execCommand(`${NVM_PREAMBLE} && pkill -f "openclaw gateway" 2>/dev/null || true`);
+    await ssh.execCommand(`${NVM_PREAMBLE} && openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true`);
     return true; // Always succeed, even if gateway wasn't running
   } finally {
     ssh.dispose();
@@ -1152,7 +1155,7 @@ export async function installAgdpSkill(vm: VMRecord): Promise<void> {
       'fi',
       '',
       '# Restart gateway to pick up changes',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
@@ -1196,7 +1199,7 @@ export async function uninstallAgdpSkill(vm: VMRecord): Promise<void> {
       'fi',
       '',
       '# Restart gateway to pick up changes',
-      'pkill -f "openclaw gateway" 2>/dev/null || true',
+      'openclaw gateway stop 2>/dev/null || pkill -9 -f "openclaw-gateway" 2>/dev/null || true',
       'sleep 2',
       `nohup openclaw gateway run --bind lan --port ${GATEWAY_PORT} --force > /tmp/openclaw-gateway.log 2>&1 &`,
       'sleep 3',
