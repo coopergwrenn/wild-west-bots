@@ -14,12 +14,14 @@ import {
   FolderOpen,
   Key,
   MoreHorizontal,
+  ClipboardList,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
 // Primary items always visible on mobile
 const primaryNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/tasks", label: "Command Center", icon: ClipboardList },
   { href: "/history", label: "History", icon: MessageSquare },
 ];
 
