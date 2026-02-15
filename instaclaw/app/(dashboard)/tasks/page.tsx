@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronRight, Check, Send, Repeat } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
@@ -30,10 +31,12 @@ interface TaskItem {
   nextRun?: string;
 }
 
-interface ChatMessage {
-  role: "user" | "agent";
-  time: string;
-  text: string;
+interface ChatMsg {
+  id?: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at?: string;
+  isStreaming?: boolean;
 }
 
 interface LibraryItem {
@@ -45,7 +48,7 @@ interface LibraryItem {
   preview: string;
 }
 
-/* ─── Mock Data ───────────────────────────────────────────── */
+/* ─── Mock Data (Tasks + Library — wired up in later phases) ── */
 
 const mockTasks: TaskItem[] = [
   {
@@ -132,34 +135,6 @@ const mockTasks: TaskItem[] = [
   },
 ];
 
-const mockChat: ChatMessage[] = [
-  {
-    role: "agent",
-    time: "9:41 AM",
-    text: "Good morning. I\u2019ve been busy \u2014 your morning briefing is ready (3 key stories about AI agent infrastructure). I also noticed the investor you emailed last week opened your deck 4 times yesterday but hasn\u2019t replied. Want me to draft a follow-up?",
-  },
-  {
-    role: "user",
-    time: "9:43 AM",
-    text: "Yes, draft something. Keep it casual but reference the traction \u2014 17 paying users now.",
-  },
-  {
-    role: "agent",
-    time: "9:43 AM",
-    text: "Done \u2014 3 versions in your Tasks queue. Version 1 is casual, version 2 leads with the $744 MRR number, version 3 opens with the 17-user milestone. I\u2019d recommend version 2 \u2014 investors respond to revenue metrics 3x more than user counts based on the patterns I\u2019ve seen in your inbox. Want me to send one?",
-  },
-  {
-    role: "user",
-    time: "9:45 AM",
-    text: "Send version 2. Also \u2014 any good bounties on Clawlancer today?",
-  },
-  {
-    role: "agent",
-    time: "9:45 AM",
-    text: "Sent. I\u2019ll let you know when they open it. Re: Clawlancer \u2014 there\u2019s a $50 USDC research bounty posted 20 min ago that matches your agent\u2019s skills perfectly. Reputation requirement is below your current score. Want me to auto-claim it?",
-  },
-];
-
 const mockLibrary: LibraryItem[] = [
   {
     id: 1,
@@ -217,13 +192,15 @@ const mockLibrary: LibraryItem[] = [
   },
 ];
 
+/* ─── Quick Actions (with pre-fill text) ─────────────────── */
+
 const quickActions = [
-  { icon: "\u{1F50D}", label: "Research" },
-  { icon: "\u2709\uFE0F", label: "Draft email" },
-  { icon: "\u{1F4CA}", label: "Market update" },
-  { icon: "\u{1F4DD}", label: "Write a post" },
-  { icon: "\u{1F99E}", label: "Check bounties" },
-  { icon: "\u{1F4C5}", label: "Today\u2019s schedule" },
+  { icon: "\u{1F50D}", label: "Research", prefill: "Research " },
+  { icon: "\u2709\uFE0F", label: "Draft email", prefill: "Draft an email about " },
+  { icon: "\u{1F4CA}", label: "Market update", prefill: "Give me a market update on " },
+  { icon: "\u{1F4DD}", label: "Write a post", prefill: "Write a post about " },
+  { icon: "\u{1F99E}", label: "Check bounties", prefill: "Check the Clawlancer marketplace for available bounties" },
+  { icon: "\u{1F4C5}", label: "Today\u2019s schedule", prefill: "What\u2019s on my schedule today?" },
 ];
 
 const filterOptions: { key: FilterOption; label: string }[] = [
@@ -249,6 +226,55 @@ function filterTasks(tasks: TaskItem[], filter: FilterOption): TaskItem[] {
       return tasks.filter((t) => t.status === "completed");
     default:
       return tasks;
+  }
+}
+
+function formatTime(iso: string | undefined): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+/* ─── SSE Stream Parser ──────────────────────────────────── */
+
+async function readSseStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onDelta: (text: string) => void,
+  onDone: () => void,
+  onError: (err: string) => void
+) {
+  const decoder = new TextDecoder();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6);
+        if (data === "[DONE]") continue;
+        try {
+          const event = JSON.parse(data);
+          if (
+            event.type === "content_block_delta" &&
+            event.delta?.type === "text_delta"
+          ) {
+            onDelta(event.delta.text);
+          }
+        } catch {
+          // Not valid JSON — skip
+        }
+      }
+    }
+    onDone();
+  } catch (err) {
+    onError(String(err));
   }
 }
 
@@ -317,49 +343,134 @@ function FilterPills({
   );
 }
 
-/* ─── Sticky Input Bar (Tasks) ───────────────────────────── */
+/* ─── Typing Indicator ───────────────────────────────────── */
 
-function StickyInputBar() {
+function TypingIndicator() {
+  return (
+    <div className="flex gap-3 justify-start">
+      <div
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      >
+        {"\u{1F99E}"}
+      </div>
+      <div
+        className="rounded-2xl px-4 py-3 flex items-center gap-1"
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      >
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="w-2 h-2 rounded-full"
+            style={{ background: "var(--muted)" }}
+            animate={{ y: [0, -4, 0] }}
+            transition={{
+              duration: 0.6,
+              repeat: Infinity,
+              delay: i * 0.15,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Chat Bubble ────────────────────────────────────────── */
+
+function ChatBubble({ msg }: { msg: ChatMsg }) {
+  const isUser = msg.role === "user";
+
   return (
     <div
-      className="shrink-0 -mx-4 px-4 pt-3"
-      style={{
-        background: "#f8f7f4",
-        boxShadow: "0 -4px 12px rgba(0,0,0,0.04)",
-        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
-      }}
+      className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
     >
-      <div
-        className="rounded-2xl px-5 py-4"
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Tell your agent what to do next..."
-          className="w-full bg-transparent text-sm outline-none"
-          style={{ color: "var(--foreground)" }}
-        />
-      </div>
+      {!isUser && (
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
+          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+        >
+          {"\u{1F99E}"}
+        </div>
+      )}
 
+      <div className="max-w-[80%] sm:max-w-[70%]">
+        <div
+          className="rounded-2xl px-4 py-3 text-sm leading-relaxed"
+          style={
+            isUser
+              ? { background: "var(--accent)", color: "#ffffff" }
+              : {
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--foreground)",
+                }
+          }
+        >
+          {isUser ? (
+            msg.content
+          ) : (
+            <div className="prose prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_pre]:rounded-lg [&_pre]:bg-black/5 [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-black/5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+            </div>
+          )}
+          {msg.isStreaming && (
+            <span className="inline-block w-1.5 h-4 ml-0.5 bg-current animate-pulse" />
+          )}
+        </div>
+        {msg.created_at && (
+          <p
+            className={`text-[11px] mt-1.5 ${
+              isUser ? "text-right" : "text-left"
+            }`}
+            style={{ color: "var(--muted)" }}
+          >
+            {formatTime(msg.created_at)}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Chat Empty State ───────────────────────────────────── */
+
+function ChatEmptyState({
+  onChipClick,
+}: {
+  onChipClick: (text: string) => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
       <div
-        className="flex gap-2 overflow-x-auto pb-1 mt-3"
-        style={{ scrollbarWidth: "none" }}
+        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-4"
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
       >
-        {quickActions.map((action) => (
+        {"\u{1F99E}"}
+      </div>
+      <h3
+        className="text-lg font-normal mb-1"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        Hey! I&apos;m your InstaClaw agent.
+      </h3>
+      <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
+        Ask me anything &mdash; I&apos;m ready to work.
+      </p>
+      <div className="flex flex-wrap gap-2 justify-center">
+        {quickActions.map((a) => (
           <button
-            key={action.label}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer transition-all hover:scale-[1.02]"
+            key={a.label}
+            onClick={() => onChipClick(a.prefill)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all hover:scale-[1.02]"
             style={{
               background: "var(--card)",
               border: "1px solid var(--border)",
               color: "var(--foreground)",
             }}
           >
-            <span>{action.icon}</span>
-            {action.label}
+            <span>{a.icon}</span>
+            {a.label}
           </button>
         ))}
       </div>
@@ -367,38 +478,32 @@ function StickyInputBar() {
   );
 }
 
-/* ─── Chat Sticky Input ─────────────────────────────────── */
+/* ─── Skeleton Loading ───────────────────────────────────── */
 
-function ChatStickyInput() {
+function ChatSkeleton() {
   return (
-    <div
-      className="shrink-0 -mx-4 px-4 pt-3"
-      style={{
-        background: "#f8f7f4",
-        boxShadow: "0 -4px 12px rgba(0,0,0,0.04)",
-        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
-      }}
-    >
-      <div
-        className="rounded-2xl p-3 flex items-center gap-3"
-        style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Message your agent..."
-          className="flex-1 bg-transparent text-sm outline-none"
-          style={{ color: "var(--foreground)" }}
-        />
-        <button
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-opacity hover:opacity-80"
-          style={{ background: "var(--accent)" }}
+    <div className="space-y-4 animate-pulse">
+      {[false, true, false].map((isUser, i) => (
+        <div
+          key={i}
+          className={`flex gap-3 ${isUser ? "justify-end" : "justify-start"}`}
         >
-          <Send className="w-4 h-4" style={{ color: "#ffffff" }} />
-        </button>
-      </div>
+          {!isUser && (
+            <div
+              className="w-8 h-8 rounded-full shrink-0"
+              style={{ background: "var(--border)" }}
+            />
+          )}
+          <div
+            className="rounded-2xl h-12"
+            style={{
+              background: "var(--border)",
+              width: isUser ? "50%" : "65%",
+              opacity: 0.5,
+            }}
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -406,7 +511,6 @@ function ChatStickyInput() {
 /* ─── Task Card ──────────────────────────────────────────── */
 
 function TaskCard({ task }: { task: TaskItem }) {
-  /* Build the streak / timing metadata line */
   const streakLabel =
     task.streak && task.streak > 1
       ? task.frequency?.toLowerCase().includes("week")
@@ -428,7 +532,6 @@ function TaskCard({ task }: { task: TaskItem }) {
       className="glass rounded-xl p-4 sm:p-5 flex items-start gap-4 cursor-pointer group"
       style={{ border: "1px solid var(--border)" }}
     >
-      {/* Checkbox */}
       <div className="shrink-0 mt-0.5">
         {task.status === "completed" ? (
           <div
@@ -448,7 +551,6 @@ function TaskCard({ task }: { task: TaskItem }) {
         )}
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <StatusDot status={task.status} />
@@ -472,13 +574,9 @@ function TaskCard({ task }: { task: TaskItem }) {
         )}
       </div>
 
-      {/* Recurring indicator + Integration Icons */}
       <div className="flex items-center gap-1.5 shrink-0 mt-1">
         {task.isRecurring && (
-          <Repeat
-            className="w-3.5 h-3.5"
-            style={{ color: "var(--muted)" }}
-          />
+          <Repeat className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
         )}
         {task.icons.map((icon, i) => (
           <span
@@ -491,7 +589,6 @@ function TaskCard({ task }: { task: TaskItem }) {
         ))}
       </div>
 
-      {/* Chevron */}
       <ChevronRight
         className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 mt-1"
         style={{ color: "var(--muted)" }}
@@ -506,6 +603,15 @@ export default function CommandCenterPage() {
   const [activeTab, setActiveTab] = useState<Tab>("tasks");
   const [filter, setFilter] = useState<FilterOption>("all");
 
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isLoadingChat, setIsLoadingChat] = useState(true);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "tasks", label: "Tasks" },
     { key: "chat", label: "Chat" },
@@ -513,6 +619,156 @@ export default function CommandCenterPage() {
   ];
 
   const filteredTasks = filterTasks(mockTasks, filter);
+
+  // Scroll to bottom of chat
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+  }, []);
+
+  // Fetch chat history on mount
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/chat/history");
+        if (res.ok) {
+          const data = await res.json();
+          setChatMessages(data.messages ?? []);
+        }
+      } catch {
+        // Non-fatal — start with empty chat
+      } finally {
+        setIsLoadingChat(false);
+      }
+    }
+    loadHistory();
+  }, []);
+
+  // Auto-scroll when messages change or tab switches to chat
+  useEffect(() => {
+    if (activeTab === "chat") {
+      scrollToBottom();
+    }
+  }, [chatMessages, activeTab, scrollToBottom]);
+
+  // Send a message
+  const sendMessage = useCallback(
+    async (text: string) => {
+      if (!text.trim() || isSending) return;
+      const userMsg: ChatMsg = {
+        role: "user",
+        content: text.trim(),
+        created_at: new Date().toISOString(),
+      };
+
+      setChatMessages((prev) => [...prev, userMsg]);
+      setChatInput("");
+      setIsSending(true);
+      setChatError(null);
+
+      // Add placeholder for streaming response
+      const streamingId = "streaming-" + Date.now();
+      setChatMessages((prev) => [
+        ...prev,
+        { id: streamingId, role: "assistant", content: "", isStreaming: true },
+      ]);
+
+      try {
+        const res = await fetch("/api/chat/send", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: text.trim() }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(
+            err.error || "Your agent is currently offline. Check your dashboard for status."
+          );
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response stream");
+
+        await readSseStream(
+          reader,
+          (delta) => {
+            setChatMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId
+                  ? { ...m, content: m.content + delta }
+                  : m
+              )
+            );
+          },
+          () => {
+            setChatMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId
+                  ? {
+                      ...m,
+                      isStreaming: false,
+                      created_at: new Date().toISOString(),
+                      id: undefined,
+                    }
+                  : m
+              )
+            );
+          },
+          (err) => {
+            setChatError(err);
+            setChatMessages((prev) =>
+              prev.filter((m) => m.id !== streamingId)
+            );
+          }
+        );
+      } catch (err) {
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : "Your agent is currently offline. Check your dashboard for status.";
+        setChatError(errorMsg);
+        // Remove the streaming placeholder
+        setChatMessages((prev) =>
+          prev.filter((m) => m.id !== streamingId)
+        );
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [isSending]
+  );
+
+  // Handle input submit (Enter key or Send button)
+  const handleSubmit = useCallback(() => {
+    if (!chatInput.trim()) return;
+    // If on Tasks tab, switch to Chat and send there
+    if (activeTab === "tasks") {
+      setActiveTab("chat");
+    }
+    sendMessage(chatInput);
+  }, [chatInput, activeTab, sendMessage]);
+
+  // Handle chip click
+  const handleChipClick = useCallback(
+    (prefill: string) => {
+      if (activeTab !== "chat") {
+        setActiveTab("chat");
+      }
+      // If prefill ends with a full sentence (like "What's on my schedule today?"), send it immediately
+      if (prefill.endsWith("?") || prefill.endsWith("bounties")) {
+        sendMessage(prefill);
+      } else {
+        setChatInput(prefill);
+        // Focus input after state update
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
+    },
+    [activeTab, sendMessage]
+  );
 
   return (
     <div className="flex flex-col h-[calc(100dvh-9.5rem)] sm:h-[calc(100dvh-11.5rem)]">
@@ -529,7 +785,6 @@ export default function CommandCenterPage() {
           it&apos;s handling.
         </p>
 
-        {/* Filter Pills */}
         <div className="mt-4">
           <FilterPills
             active={filter}
@@ -538,7 +793,6 @@ export default function CommandCenterPage() {
           />
         </div>
 
-        {/* Tab Bar */}
         <div
           className="flex items-center gap-6 border-b mt-4"
           style={{ borderColor: "var(--border)" }}
@@ -568,7 +822,7 @@ export default function CommandCenterPage() {
       </div>
 
       {/* ── Scrollable content area ─────────────────────────── */}
-      <div className="flex-1 overflow-y-auto min-h-0 pt-6 pb-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0 pt-6 pb-2">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -593,83 +847,145 @@ export default function CommandCenterPage() {
                 )}
               </div>
             )}
-            {activeTab === "chat" && <ChatContent />}
+
+            {activeTab === "chat" && (
+              <div>
+                {isLoadingChat ? (
+                  <ChatSkeleton />
+                ) : chatMessages.length === 0 && !isSending ? (
+                  <ChatEmptyState onChipClick={handleChipClick} />
+                ) : (
+                  <div className="space-y-4">
+                    {chatMessages.map((msg, i) => (
+                      <ChatBubble key={msg.id || `msg-${i}`} msg={msg} />
+                    ))}
+                    {isSending &&
+                      !chatMessages.some((m) => m.isStreaming) && (
+                        <TypingIndicator />
+                      )}
+                  </div>
+                )}
+
+                {/* Error banner */}
+                {chatError && (
+                  <div
+                    className="mt-4 rounded-xl px-4 py-3 text-sm flex items-center justify-between"
+                    style={{
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                    }}
+                  >
+                    <span>{chatError}</span>
+                    <button
+                      onClick={() => setChatError(null)}
+                      className="ml-3 text-xs font-medium cursor-pointer hover:underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "library" && <LibraryContent />}
           </motion.div>
         </AnimatePresence>
       </div>
 
       {/* ── Sticky input (pinned below scroll area) ─────────── */}
-      {activeTab === "tasks" && <StickyInputBar />}
-      {activeTab === "chat" && <ChatStickyInput />}
-    </div>
-  );
-}
-
-/* ─── Chat Content ───────────────────────────────────────── */
-
-function ChatContent() {
-  return (
-    <div>
-      <div className="mb-6">
-        <h2
-          className="text-2xl font-normal tracking-[-0.5px]"
-          style={{ fontFamily: "var(--font-serif)" }}
+      {activeTab === "tasks" && (
+        <div
+          className="shrink-0 -mx-4 px-4 pt-3"
+          style={{
+            background: "#f8f7f4",
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.04)",
+            paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+          }}
         >
-          Chat
-        </h2>
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          Talk directly to your agent from here.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        {mockChat.map((msg, i) => (
           <div
-            key={i}
-            className={`flex gap-3 ${
-              msg.role === "user" ? "justify-end" : "justify-start"
-            }`}
+            className="rounded-2xl px-5 py-4"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
           >
-            {msg.role === "agent" && (
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm"
+            <input
+              ref={inputRef}
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              placeholder="Tell your agent what to do next..."
+              className="w-full bg-transparent text-sm outline-none"
+              style={{ color: "var(--foreground)" }}
+            />
+          </div>
+          <div
+            className="flex gap-2 overflow-x-auto pb-1 mt-3"
+            style={{ scrollbarWidth: "none" }}
+          >
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                onClick={() => handleChipClick(action.prefill)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer transition-all hover:scale-[1.02]"
                 style={{
                   background: "var(--card)",
                   border: "1px solid var(--border)",
+                  color: "var(--foreground)",
                 }}
               >
-                {"\u{1F99E}"}
-              </div>
-            )}
-
-            <div className="max-w-[80%] sm:max-w-[70%]">
-              <div
-                className="rounded-2xl px-4 py-3 text-sm leading-relaxed"
-                style={
-                  msg.role === "user"
-                    ? { background: "var(--accent)", color: "#ffffff" }
-                    : {
-                        background: "var(--card)",
-                        border: "1px solid var(--border)",
-                        color: "var(--foreground)",
-                      }
-                }
-              >
-                {msg.text}
-              </div>
-              <p
-                className={`text-[11px] mt-1.5 ${
-                  msg.role === "user" ? "text-right" : "text-left"
-                }`}
-                style={{ color: "var(--muted)" }}
-              >
-                {msg.time}
-              </p>
-            </div>
+                <span>{action.icon}</span>
+                {action.label}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {activeTab === "chat" && (
+        <div
+          className="shrink-0 -mx-4 px-4 pt-3"
+          style={{
+            background: "#f8f7f4",
+            boxShadow: "0 -4px 12px rgba(0,0,0,0.04)",
+            paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+          }}
+        >
+          <div
+            className="rounded-2xl p-3 flex items-center gap-3"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <input
+              ref={activeTab === "chat" ? inputRef : undefined}
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+              placeholder="Message your agent..."
+              className="flex-1 bg-transparent text-sm outline-none"
+              style={{ color: "var(--foreground)" }}
+              disabled={isSending}
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={isSending || !chatInput.trim()}
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-40"
+              style={{ background: "var(--accent)" }}
+            >
+              <Send className="w-4 h-4" style={{ color: "#ffffff" }} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
