@@ -11,6 +11,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -81,11 +83,19 @@ function TaskCard({
   onEdit,
   onDelete,
   onMove,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
 }: {
   task: Task;
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
   onMove: (taskId: string, newStatus: string) => void;
+  onMoveUp: (taskId: string) => void;
+  onMoveDown: (taskId: string) => void;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const prev = getPrevColumn(task.status);
@@ -183,7 +193,7 @@ function TaskCard({
                 </span>
               </div>
 
-              {/* Actions row */}
+              {/* Reorder + Actions row */}
               <div className="flex items-center justify-between">
                 <div className="flex gap-1">
                   <button
@@ -204,28 +214,46 @@ function TaskCard({
                   </button>
                 </div>
 
-                {/* Move buttons */}
-                <div className="flex sm:hidden gap-1">
-                  {prev && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onMove(task.id, prev); }}
-                      className="flex items-center gap-0.5 px-2 py-1 rounded-md text-xs transition-colors active:bg-black/5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      <ChevronLeft className="w-3 h-3" />
-                      {getColumnLabel(prev)}
-                    </button>
-                  )}
-                  {next && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onMove(task.id, next); }}
-                      className="flex items-center gap-0.5 px-2 py-1 rounded-md text-xs transition-colors active:bg-black/5"
-                      style={{ color: "var(--muted)" }}
-                    >
-                      {getColumnLabel(next)}
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  )}
+                <div className="flex gap-1">
+                  {/* Reorder up/down */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMoveUp(task.id); }}
+                    disabled={isFirst}
+                    className="p-1.5 rounded-md text-xs transition-colors hover:bg-black/5 active:bg-black/5 disabled:opacity-20"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    <ArrowUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onMoveDown(task.id); }}
+                    disabled={isLast}
+                    className="p-1.5 rounded-md text-xs transition-colors hover:bg-black/5 active:bg-black/5 disabled:opacity-20"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Mobile: column move buttons */}
+                  <div className="flex sm:hidden gap-1 ml-1" style={{ borderLeft: "1px solid var(--border)", paddingLeft: "4px" }}>
+                    {prev && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onMove(task.id, prev); }}
+                        className="flex items-center gap-0.5 px-1.5 py-1 rounded-md text-xs transition-colors active:bg-black/5"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <ChevronLeft className="w-3 h-3" />
+                      </button>
+                    )}
+                    {next && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onMove(task.id, next); }}
+                        className="flex items-center gap-0.5 px-1.5 py-1 rounded-md text-xs transition-colors active:bg-black/5"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -273,6 +301,8 @@ function Column({
   onEdit,
   onDelete,
   onMove,
+  onMoveUp,
+  onMoveDown,
   hideBorder,
 }: {
   column: (typeof COLUMNS)[number];
@@ -281,6 +311,8 @@ function Column({
   onEdit: (t: Task) => void;
   onDelete: (id: string) => void;
   onMove: (taskId: string, newStatus: string) => void;
+  onMoveUp: (taskId: string) => void;
+  onMoveDown: (taskId: string) => void;
   hideBorder?: boolean;
 }) {
   const [over, setOver] = useState(false);
@@ -317,8 +349,8 @@ function Column({
       </div>
       <div className="flex flex-col gap-2 flex-1">
         <AnimatePresence mode="popLayout">
-          {tasks.map((t) => (
-            <TaskCard key={t.id} task={t} onEdit={onEdit} onDelete={onDelete} onMove={onMove} />
+          {tasks.map((t, i) => (
+            <TaskCard key={t.id} task={t} onEdit={onEdit} onDelete={onDelete} onMove={onMove} onMoveUp={onMoveUp} onMoveDown={onMoveDown} isFirst={i === 0} isLast={i === tasks.length - 1} />
           ))}
         </AnimatePresence>
         {tasks.length === 0 && (
@@ -590,6 +622,70 @@ export default function HQPage() {
     }
   }
 
+  async function handleMoveUp(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    // Get sorted tasks in the same column
+    const columnTasks = tasks
+      .filter((t) => t.status === task.status)
+      .sort((a, b) => a.position - b.position);
+
+    const idx = columnTasks.findIndex((t) => t.id === taskId);
+    if (idx <= 0) return;
+
+    const above = columnTasks[idx - 1];
+
+    // Swap positions optimistically
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id === taskId) return { ...t, position: above.position };
+        if (t.id === above.id) return { ...t, position: task.position };
+        return t;
+      })
+    );
+
+    try {
+      await Promise.all([
+        api(`/api/hq/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ position: above.position }) }),
+        api(`/api/hq/tasks/${above.id}`, { method: "PATCH", body: JSON.stringify({ position: task.position }) }),
+      ]);
+    } catch {
+      fetchTasks();
+    }
+  }
+
+  async function handleMoveDown(taskId: string) {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const columnTasks = tasks
+      .filter((t) => t.status === task.status)
+      .sort((a, b) => a.position - b.position);
+
+    const idx = columnTasks.findIndex((t) => t.id === taskId);
+    if (idx >= columnTasks.length - 1) return;
+
+    const below = columnTasks[idx + 1];
+
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id === taskId) return { ...t, position: below.position };
+        if (t.id === below.id) return { ...t, position: task.position };
+        return t;
+      })
+    );
+
+    try {
+      await Promise.all([
+        api(`/api/hq/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ position: below.position }) }),
+        api(`/api/hq/tasks/${below.id}`, { method: "PATCH", body: JSON.stringify({ position: task.position }) }),
+      ]);
+    } catch {
+      fetchTasks();
+    }
+  }
+
   async function handleDrop(taskId: string, newStatus: string) {
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
@@ -668,11 +764,13 @@ export default function HQPage() {
 
         <Column
           column={activeColumn}
-          tasks={tasks.filter((t) => t.status === activeColumn.id)}
+          tasks={tasks.filter((t) => t.status === activeColumn.id).sort((a, b) => a.position - b.position)}
           onDrop={handleDrop}
           onEdit={openEdit}
           onDelete={handleDelete}
           onMove={handleDrop}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
           hideBorder
         />
       </div>
@@ -683,11 +781,13 @@ export default function HQPage() {
           <Column
             key={col.id}
             column={col}
-            tasks={tasks.filter((t) => t.status === col.id)}
+            tasks={tasks.filter((t) => t.status === col.id).sort((a, b) => a.position - b.position)}
             onDrop={handleDrop}
             onEdit={openEdit}
             onDelete={handleDelete}
             onMove={handleDrop}
+            onMoveUp={handleMoveUp}
+            onMoveDown={handleMoveDown}
           />
         ))}
       </div>
