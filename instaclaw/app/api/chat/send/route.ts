@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { logger } from "@/lib/logger";
+import { buildSystemPrompt } from "@/lib/system-prompt";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const MAX_HISTORY = 40; // messages to include for context
@@ -220,45 +221,3 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/* ─── System Prompt Builder ──────────────────────────────── */
-
-function buildSystemPrompt(
-  customPrompt: string | null,
-  userName: string | null | undefined,
-  profileSummary: string | null | undefined,
-  insights: string[] | null | undefined
-): string {
-  const parts: string[] = [];
-
-  // Base identity
-  parts.push(
-    "You are an autonomous AI agent running on InstaClaw, a platform that gives each user their own dedicated AI agent on a private VM. " +
-    "You help your user with research, writing, monitoring, scheduling tasks, earning money on the Clawlancer marketplace, and anything else they need. " +
-    "You are proactive, resourceful, and deeply personalized to your user. " +
-    "You can browse the web, search for information, draft emails, analyze data, and complete bounties on the Clawlancer marketplace. " +
-    "Respond in a natural, conversational tone. Use markdown formatting when helpful."
-  );
-
-  // Custom system prompt from user settings
-  if (customPrompt) {
-    parts.push(`\n\nCustom instructions from your user:\n${customPrompt}`);
-  }
-
-  // User profile context
-  if (userName || profileSummary || (insights && insights.length > 0)) {
-    parts.push("\n\n## About Your User");
-    if (userName) parts.push(`Name: ${userName}`);
-    if (profileSummary) parts.push(profileSummary);
-    if (insights && insights.length > 0) {
-      parts.push("\nQuick Profile:");
-      for (const insight of insights) {
-        parts.push(`- ${insight}`);
-      }
-    }
-    parts.push(
-      "\nUse this context to personalize all interactions. You already know this person — act like it."
-    );
-  }
-
-  return parts.join("\n");
-}

@@ -28,7 +28,7 @@ const primaryNav = [
 // Overflow items shown in the "more" menu on mobile, visible on lg+
 const overflowNav = [
   { href: "/files", label: "Files", icon: FolderOpen },
-  { href: "/scheduled", label: "Tasks", icon: Clock },
+  { href: "/scheduled", label: "Scheduled", icon: Clock },
   { href: "/env-vars", label: "API Keys", icon: Key },
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/billing", label: "Billing", icon: CreditCard },

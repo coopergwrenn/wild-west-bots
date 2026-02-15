@@ -2,33 +2,42 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronRight, Check, Send, Repeat } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronDown,
+  Check,
+  Send,
+  Repeat,
+  RotateCw,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 /* ─── Types ───────────────────────────────────────────────── */
 
 type Tab = "tasks" | "chat" | "library";
 
-type TaskStatus =
-  | "completed"
-  | "in-progress"
-  | "queued"
-  | "always-on"
-  | "scheduled";
+type TaskStatus = "completed" | "in_progress" | "queued" | "failed" | "active";
 
 type FilterOption = "all" | "active" | "scheduled" | "completed";
 
 interface TaskItem {
-  id: number;
+  id: string;
+  user_id: string;
   title: string;
   description: string;
   status: TaskStatus;
-  icons: { emoji: string; bg: string }[];
-  isRecurring: boolean;
-  frequency?: string;
-  streak?: number;
-  lastRun?: string;
-  nextRun?: string;
+  is_recurring: boolean;
+  frequency: string | null;
+  streak: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  result: string | null;
+  error_message: string | null;
+  tools_used: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 interface ChatMsg {
@@ -48,92 +57,7 @@ interface LibraryItem {
   preview: string;
 }
 
-/* ─── Mock Data (Tasks + Library — wired up in later phases) ── */
-
-const mockTasks: TaskItem[] = [
-  {
-    id: 1,
-    title: "Morning Briefing Delivered",
-    description:
-      "Scanned 47 sources, 3 stories relevant to your portfolio. Sent via Telegram.",
-    status: "completed",
-    icons: [
-      { emoji: "\u{1F4F0}", bg: "#fecaca" },
-      { emoji: "\u{1F4E8}", bg: "#bfdbfe" },
-    ],
-    isRecurring: true,
-    frequency: "Daily",
-    streak: 14,
-    lastRun: "Today 8:41am",
-  },
-  {
-    id: 2,
-    title: "Research: Best MCP Servers for Agent Tooling",
-    description:
-      "Analyzing 15 repositories \u2014 11/15 complete. Results in ~8 min.",
-    status: "in-progress",
-    icons: [
-      { emoji: "\u{1F50D}", bg: "#bfdbfe" },
-      { emoji: "\u{1F4BB}", bg: "#e5e7eb" },
-    ],
-    isRecurring: false,
-  },
-  {
-    id: 3,
-    title: "Draft Investor Update Email",
-    description:
-      "Using your latest metrics ($744 MRR, 17 subs). 3 tone variants.",
-    status: "queued",
-    icons: [
-      { emoji: "\u2709\uFE0F", bg: "#bfdbfe" },
-      { emoji: "\u{1F4CA}", bg: "#bbf7d0" },
-    ],
-    isRecurring: false,
-  },
-  {
-    id: 4,
-    title: "Monitoring Clawlancer Marketplace",
-    description:
-      "Watching for high-value bounties matching your agent\u2019s skills.",
-    status: "always-on",
-    icons: [
-      { emoji: "\u{1F99E}", bg: "#fed7aa" },
-      { emoji: "\u{1F514}", bg: "#fef08a" },
-    ],
-    isRecurring: true,
-    frequency: "Always-on",
-    streak: 7,
-    lastRun: "2 min ago",
-  },
-  {
-    id: 5,
-    title: "Weekly Earnings Report",
-    description:
-      "Compiles bounty completions, USDC earned, reputation changes.",
-    status: "scheduled",
-    icons: [
-      { emoji: "\u{1F4C8}", bg: "#bbf7d0" },
-      { emoji: "\u{1F4B0}", bg: "#fef08a" },
-    ],
-    isRecurring: true,
-    frequency: "Weekly (Sundays 9am)",
-    streak: 3,
-    lastRun: "Last Sunday",
-    nextRun: "Tomorrow 9am",
-  },
-  {
-    id: 6,
-    title: "Competitive Landscape Analysis",
-    description:
-      "Full report: 4 direct competitors mapped, pricing compared, moat analysis. Saved to Library.",
-    status: "completed",
-    icons: [
-      { emoji: "\u{1F50D}", bg: "#e9d5ff" },
-      { emoji: "\u{1F4CB}", bg: "#e5e7eb" },
-    ],
-    isRecurring: false,
-  },
-];
+/* ─── Mock Data (Library — wired up in Phase 3) ────────────── */
 
 const mockLibrary: LibraryItem[] = [
   {
@@ -197,10 +121,10 @@ const mockLibrary: LibraryItem[] = [
 const quickActions = [
   { icon: "\u{1F50D}", label: "Research", prefill: "Research " },
   { icon: "\u2709\uFE0F", label: "Draft email", prefill: "Draft an email about " },
-  { icon: "\u{1F4CA}", label: "Market update", prefill: "Give me a market update on " },
+  { icon: "\u{1F4CA}", label: "Market update", prefill: "Give me a market update on the latest crypto and AI news" },
   { icon: "\u{1F4DD}", label: "Write a post", prefill: "Write a post about " },
-  { icon: "\u{1F99E}", label: "Check bounties", prefill: "Check the Clawlancer marketplace for available bounties" },
-  { icon: "\u{1F4C5}", label: "Today\u2019s schedule", prefill: "What\u2019s on my schedule today?" },
+  { icon: "\u{1F99E}", label: "Check bounties", prefill: "Check the Clawlancer marketplace for available bounties and recommend the best ones for me" },
+  { icon: "\u{1F4C5}", label: "Today\u2019s schedule", prefill: "Summarize what I should focus on today based on my priorities and pending work" },
 ];
 
 const filterOptions: { key: FilterOption; label: string }[] = [
@@ -212,24 +136,7 @@ const filterOptions: { key: FilterOption; label: string }[] = [
 
 /* ─── Helpers ────────────────────────────────────────────── */
 
-function filterTasks(tasks: TaskItem[], filter: FilterOption): TaskItem[] {
-  switch (filter) {
-    case "active":
-      return tasks.filter(
-        (t) => t.status === "in-progress" || t.status === "always-on"
-      );
-    case "scheduled":
-      return tasks.filter(
-        (t) => t.status === "queued" || t.status === "scheduled"
-      );
-    case "completed":
-      return tasks.filter((t) => t.status === "completed");
-    default:
-      return tasks;
-  }
-}
-
-function formatTime(iso: string | undefined): string {
+function formatTime(iso: string | undefined | null): string {
   if (!iso) return "";
   try {
     return new Date(iso).toLocaleTimeString([], {
@@ -238,6 +145,50 @@ function formatTime(iso: string | undefined): string {
     });
   } catch {
     return "";
+  }
+}
+
+function formatDate(iso: string | undefined | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function timeAgo(iso: string | undefined | null): string {
+  if (!iso) return "";
+  try {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return "";
+  }
+}
+
+/** Map filter option to status query param */
+function filterToStatus(filter: FilterOption): string | undefined {
+  switch (filter) {
+    case "active":
+      return "in_progress,active";
+    case "scheduled":
+      return "queued";
+    case "completed":
+      return "completed";
+    default:
+      return undefined;
   }
 }
 
@@ -285,14 +236,14 @@ function StatusDot({ status }: { status: TaskStatus }) {
   switch (status) {
     case "completed":
       return <span className={base} style={{ background: "#16a34a" }} />;
-    case "always-on":
+    case "active":
       return (
         <span
           className={`${base} animate-pulse`}
           style={{ background: "#16a34a" }}
         />
       );
-    case "in-progress":
+    case "in_progress":
       return (
         <span
           className={`${base} animate-pulse`}
@@ -301,8 +252,8 @@ function StatusDot({ status }: { status: TaskStatus }) {
       );
     case "queued":
       return <span className={base} style={{ background: "#eab308" }} />;
-    case "scheduled":
-      return <span className={base} style={{ background: "#9ca3af" }} />;
+    case "failed":
+      return <span className={base} style={{ background: "#ef4444" }} />;
   }
 }
 
@@ -312,10 +263,12 @@ function FilterPills({
   active,
   onChange,
   visible,
+  failedCount,
 }: {
   active: FilterOption;
   onChange: (f: FilterOption) => void;
   visible: boolean;
+  failedCount: number;
 }) {
   return (
     <div
@@ -327,7 +280,7 @@ function FilterPills({
         <motion.button
           key={f.key}
           onClick={() => onChange(f.key)}
-          className="px-3 py-1 rounded-full text-xs font-medium cursor-pointer"
+          className="relative px-3 py-1 rounded-full text-xs font-medium cursor-pointer"
           animate={{
             background: active === f.key ? "#2d2d2d" : "rgba(0,0,0,0)",
             color: active === f.key ? "#ffffff" : "#9ca3af",
@@ -337,6 +290,14 @@ function FilterPills({
           style={{ border: "1px solid var(--border)" }}
         >
           {f.label}
+          {f.key === "all" && failedCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
+              style={{ background: "#ef4444" }}
+            >
+              {failedCount}
+            </span>
+          )}
         </motion.button>
       ))}
     </div>
@@ -508,12 +469,88 @@ function ChatSkeleton() {
   );
 }
 
+function TasksSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="rounded-xl p-5 flex items-start gap-4"
+          style={{ border: "1px solid var(--border)", opacity: 0.5 }}
+        >
+          <div
+            className="w-6 h-6 rounded-full shrink-0"
+            style={{ background: "var(--border)" }}
+          />
+          <div className="flex-1 space-y-2">
+            <div
+              className="h-4 rounded"
+              style={{ background: "var(--border)", width: "60%" }}
+            />
+            <div
+              className="h-3 rounded"
+              style={{ background: "var(--border)", width: "80%" }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Tasks Empty State ──────────────────────────────────── */
+
+function TasksEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+      <div
+        className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-4"
+        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+      >
+        {"\u{1F4CB}"}
+      </div>
+      <h3
+        className="text-lg font-normal mb-1"
+        style={{ fontFamily: "var(--font-serif)" }}
+      >
+        No tasks yet
+      </h3>
+      <p className="text-sm mb-2" style={{ color: "var(--muted)" }}>
+        Tell your agent what to do &mdash; just type below.
+      </p>
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        Try something like: &ldquo;Research the top AI agent frameworks&rdquo;
+        or &ldquo;Draft a weekly investor update&rdquo;
+      </p>
+    </div>
+  );
+}
+
 /* ─── Task Card ──────────────────────────────────────────── */
 
-function TaskCard({ task }: { task: TaskItem }) {
+function TaskCard({
+  task,
+  isExpanded,
+  onToggleExpand,
+  onToggleComplete,
+  onDelete,
+  onRerun,
+}: {
+  task: TaskItem;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onToggleComplete: () => void;
+  onDelete: () => void;
+  onRerun: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const isFailed = task.status === "failed";
+  const isProcessing = task.status === "in_progress";
+  const isCompleted = task.status === "completed";
+
   const streakLabel =
-    task.streak && task.streak > 1
-      ? task.frequency?.toLowerCase().includes("week")
+    task.streak > 1
+      ? task.frequency?.includes("week")
         ? `\u{1F525} ${task.streak} weeks`
         : `\u{1F525} ${task.streak} days`
       : null;
@@ -521,80 +558,319 @@ function TaskCard({ task }: { task: TaskItem }) {
   const timingParts: string[] = [];
   if (task.frequency) timingParts.push(task.frequency);
   if (streakLabel) timingParts.push(streakLabel);
-  if (task.status === "scheduled" && task.nextRun) {
-    timingParts.push(`Next: ${task.nextRun}`);
-  } else if (task.lastRun) {
-    timingParts.push(`Last: ${task.lastRun} \u2705`);
+  if (task.status === "queued" && task.next_run_at) {
+    timingParts.push(`Next: ${timeAgo(task.next_run_at)}`);
+  } else if (task.last_run_at) {
+    timingParts.push(`Last: ${timeAgo(task.last_run_at)} \u2705`);
   }
 
   return (
     <div
-      className="glass rounded-xl p-4 sm:p-5 flex items-start gap-4 cursor-pointer group"
-      style={{ border: "1px solid var(--border)" }}
+      className="glass rounded-xl overflow-hidden"
+      style={{
+        border: isFailed
+          ? "1px solid #fca5a5"
+          : "1px solid var(--border)",
+        background: isFailed ? "rgba(239,68,68,0.03)" : undefined,
+      }}
     >
-      <div className="shrink-0 mt-0.5">
-        {task.status === "completed" ? (
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center"
-            style={{ background: "var(--foreground)" }}
-          >
-            <Check
-              className="w-3.5 h-3.5"
-              style={{ color: "var(--background)" }}
+      {/* Main row */}
+      <div
+        className="p-4 sm:p-5 flex items-start gap-4 cursor-pointer group"
+        onClick={onToggleExpand}
+      >
+        {/* Checkbox */}
+        <div
+          className="shrink-0 mt-0.5"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isProcessing) onToggleComplete();
+          }}
+        >
+          {isCompleted ? (
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center cursor-pointer transition-opacity hover:opacity-70"
+              style={{ background: "var(--foreground)" }}
+            >
+              <Check
+                className="w-3.5 h-3.5"
+                style={{ color: "var(--background)" }}
+              />
+            </div>
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full border-2 transition-colors cursor-pointer hover:border-gray-400"
+              style={{ borderColor: isProcessing ? "#3b82f6" : "rgba(0,0,0,0.15)" }}
             />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <StatusDot status={task.status} />
+            <p
+              className={`font-medium text-base truncate ${
+                isProcessing && task.title === "Processing..."
+                  ? "animate-pulse"
+                  : ""
+              }`}
+              style={{ color: "var(--foreground)" }}
+            >
+              {task.title}
+            </p>
           </div>
+          <p
+            className="text-sm mt-0.5 truncate pl-4"
+            style={{ color: isFailed ? "#b91c1c" : "var(--muted)" }}
+          >
+            {isFailed && task.error_message
+              ? task.error_message
+              : task.description}
+          </p>
+          {task.is_recurring && timingParts.length > 0 && (
+            <p className="text-xs mt-1 pl-4" style={{ color: "var(--muted)" }}>
+              {timingParts.join(" \u00B7 ")}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0 mt-1">
+          {isFailed && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRerun();
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors hover:bg-red-50"
+              style={{ color: "#ef4444", border: "1px solid #fca5a5" }}
+            >
+              <RotateCw className="w-3 h-3" />
+              Retry
+            </button>
+          )}
+          {task.is_recurring && (
+            <Repeat className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
+          )}
+          {task.tools_used.length > 0 && (
+            <span
+              className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+            >
+              {task.tools_used.length} tool{task.tools_used.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+
+        {isExpanded ? (
+          <ChevronDown
+            className="w-4 h-4 shrink-0 mt-1"
+            style={{ color: "var(--muted)" }}
+          />
         ) : (
-          <div
-            className="w-6 h-6 rounded-full border-2 transition-colors"
-            style={{ borderColor: "rgba(0,0,0,0.15)" }}
+          <ChevronRight
+            className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 mt-1"
+            style={{ color: "var(--muted)" }}
           />
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <StatusDot status={task.status} />
-          <p
-            className="font-medium text-base truncate"
-            style={{ color: "var(--foreground)" }}
+      {/* Expanded detail section */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
           >
-            {task.title}
-          </p>
-        </div>
-        <p
-          className="text-sm mt-0.5 truncate pl-4"
-          style={{ color: "var(--muted)" }}
-        >
-          {task.description}
-        </p>
-        {task.isRecurring && timingParts.length > 0 && (
-          <p className="text-xs mt-1 pl-4" style={{ color: "var(--muted)" }}>
-            {timingParts.join(" \u00B7 ")}
-          </p>
-        )}
-      </div>
+            <div
+              className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 space-y-3"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              {/* Original request */}
+              <div className="pt-3">
+                <p className="text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>
+                  You asked:
+                </p>
+                <p className="text-sm" style={{ color: "var(--muted)" }}>
+                  &ldquo;{task.description}&rdquo;
+                </p>
+              </div>
 
-      <div className="flex items-center gap-1.5 shrink-0 mt-1">
-        {task.isRecurring && (
-          <Repeat className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
-        )}
-        {task.icons.map((icon, i) => (
-          <span
-            key={i}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-            style={{ background: icon.bg }}
-          >
-            {icon.emoji}
-          </span>
-        ))}
-      </div>
+              {/* Result */}
+              {task.result && (
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: "var(--muted)" }}>
+                    Result:
+                  </p>
+                  <div
+                    className="rounded-lg p-3 text-sm"
+                    style={{ background: "rgba(0,0,0,0.02)", border: "1px solid var(--border)" }}
+                  >
+                    <div className="prose prose-sm max-w-none [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0 [&_pre]:my-2 [&_pre]:rounded-lg [&_pre]:bg-black/5 [&_pre]:p-3 [&_code]:text-xs [&_code]:bg-black/5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+                      <ReactMarkdown>{task.result}</ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-      <ChevronRight
-        className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-0.5 mt-1"
-        style={{ color: "var(--muted)" }}
-      />
+              {/* Error message */}
+              {isFailed && task.error_message && (
+                <div
+                  className="rounded-lg p-3 text-sm flex items-start gap-2"
+                  style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  {task.error_message}
+                </div>
+              )}
+
+              {/* Tools used */}
+              {task.tools_used.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>
+                    Tools:
+                  </span>
+                  {task.tools_used.map((tool) => (
+                    <span
+                      key={tool}
+                      className="px-2 py-0.5 rounded-full text-[11px] font-medium"
+                      style={{
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        color: "var(--foreground)",
+                      }}
+                    >
+                      {tool}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Timestamps + recurring info */}
+              <div className="text-xs space-y-0.5" style={{ color: "var(--muted)" }}>
+                <p>Created: {formatDate(task.created_at)}</p>
+                {isCompleted && <p>Completed: {formatDate(task.updated_at)}</p>}
+                {task.is_recurring && task.frequency && (
+                  <p>
+                    Recurring: {task.frequency}
+                    {task.streak > 0 && ` \u00B7 \u{1F525} ${task.streak} streak`}
+                  </p>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRerun();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors hover:bg-black/5"
+                  style={{ border: "1px solid var(--border)", color: "var(--foreground)" }}
+                >
+                  <RotateCw className="w-3 h-3" />
+                  Re-run
+                </button>
+                {!confirmDelete ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConfirmDelete(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors hover:bg-red-50"
+                    style={{ color: "#ef4444" }}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Delete
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer"
+                    style={{ background: "#ef4444", color: "#ffffff" }}
+                  >
+                    Confirm delete
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+
+/* ─── useTaskPolling Hook ────────────────────────────────── */
+
+function useTaskPolling(
+  taskIds: string[],
+  onUpdate: (task: TaskItem) => void
+) {
+  const intervalRef = useRef<Record<string, ReturnType<typeof setInterval>>>({});
+  const startTimesRef = useRef<Record<string, number>>({});
+
+  const startPolling = useCallback(
+    (taskId: string) => {
+      // Don't double-poll
+      if (intervalRef.current[taskId]) return;
+
+      startTimesRef.current[taskId] = Date.now();
+
+      intervalRef.current[taskId] = setInterval(async () => {
+        // Safety timeout: stop after 2 minutes
+        if (Date.now() - startTimesRef.current[taskId] > 120_000) {
+          clearInterval(intervalRef.current[taskId]);
+          delete intervalRef.current[taskId];
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/tasks/${taskId}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const task = data.task as TaskItem;
+          onUpdate(task);
+
+          if (task.status === "completed" || task.status === "failed") {
+            clearInterval(intervalRef.current[taskId]);
+            delete intervalRef.current[taskId];
+          }
+        } catch {
+          // Non-fatal
+        }
+      }, 3000);
+    },
+    [onUpdate]
+  );
+
+  const stopPolling = useCallback((taskId: string) => {
+    if (intervalRef.current[taskId]) {
+      clearInterval(intervalRef.current[taskId]);
+      delete intervalRef.current[taskId];
+    }
+  }, []);
+
+  // Start polling for all provided IDs
+  useEffect(() => {
+    for (const id of taskIds) {
+      startPolling(id);
+    }
+    // Cleanup
+    return () => {
+      for (const id of Object.keys(intervalRef.current)) {
+        clearInterval(intervalRef.current[id]);
+      }
+      intervalRef.current = {};
+    };
+  }, [taskIds, startPolling]);
+
+  return { startPolling, stopPolling };
 }
 
 /* ─── Page ────────────────────────────────────────────────── */
@@ -602,6 +878,14 @@ function TaskCard({ task }: { task: TaskItem }) {
 export default function CommandCenterPage() {
   const [activeTab, setActiveTab] = useState<Tab>("tasks");
   const [filter, setFilter] = useState<FilterOption>("all");
+
+  // Task state
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [pollingIds, setPollingIds] = useState<string[]>([]);
+  const [failedCount, setFailedCount] = useState(0);
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
@@ -618,8 +902,6 @@ export default function CommandCenterPage() {
     { key: "library", label: "Library" },
   ];
 
-  const filteredTasks = filterTasks(mockTasks, filter);
-
   // Scroll to bottom of chat
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -629,7 +911,190 @@ export default function CommandCenterPage() {
     });
   }, []);
 
-  // Fetch chat history on mount
+  // ─── Fetch tasks ───────────────────────────────────────
+
+  const fetchTasks = useCallback(async (statusFilter?: string) => {
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.set("status", statusFilter);
+      params.set("limit", "100");
+      const res = await fetch(`/api/tasks/list?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      setTasks(data.tasks ?? []);
+    } catch {
+      setTaskError("Failed to load tasks");
+    } finally {
+      setIsLoadingTasks(false);
+    }
+  }, []);
+
+  // Fetch failed count (for badge on "All" pill)
+  const fetchFailedCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tasks/list?status=failed&limit=1");
+      if (res.ok) {
+        const data = await res.json();
+        setFailedCount(data.total ?? 0);
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchTasks(filterToStatus(filter));
+    fetchFailedCount();
+  }, [filter, fetchTasks, fetchFailedCount]);
+
+  // ─── Task polling ─────────────────────────────────────
+
+  const handleTaskUpdate = useCallback((updated: TaskItem) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === updated.id ? updated : t))
+    );
+    // If task finished, remove from polling and refresh failed count
+    if (updated.status === "completed" || updated.status === "failed") {
+      setPollingIds((prev) => prev.filter((id) => id !== updated.id));
+      if (updated.status === "failed") {
+        setFailedCount((prev) => prev + 1);
+      }
+    }
+  }, []);
+
+  useTaskPolling(pollingIds, handleTaskUpdate);
+
+  // ─── Create task ──────────────────────────────────────
+
+  const createTask = useCallback(
+    async (text: string) => {
+      if (!text.trim()) return;
+      setTaskError(null);
+
+      // Optimistic: add a processing card at the top
+      const optimisticId = "optimistic-" + Date.now();
+      const optimistic: TaskItem = {
+        id: optimisticId,
+        user_id: "",
+        title: "Processing...",
+        description: text.trim(),
+        status: "in_progress",
+        is_recurring: false,
+        frequency: null,
+        streak: 0,
+        last_run_at: null,
+        next_run_at: null,
+        result: null,
+        error_message: null,
+        tools_used: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      setTasks((prev) => [optimistic, ...prev]);
+
+      try {
+        const res = await fetch("/api/tasks/create", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ message: text.trim() }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Failed to create task");
+        }
+
+        const data = await res.json();
+        const realTask = data.task as TaskItem;
+
+        // Replace optimistic with real task
+        setTasks((prev) =>
+          prev.map((t) => (t.id === optimisticId ? realTask : t))
+        );
+
+        // Start polling for this task
+        setPollingIds((prev) => [...prev, realTask.id]);
+      } catch (err) {
+        // Remove optimistic card
+        setTasks((prev) => prev.filter((t) => t.id !== optimisticId));
+        setTaskError(
+          err instanceof Error ? err.message : "Failed to create task"
+        );
+      }
+    },
+    []
+  );
+
+  // ─── Toggle task complete ─────────────────────────────
+
+  const toggleComplete = useCallback(async (task: TaskItem) => {
+    const newStatus = task.status === "completed" ? "queued" : "completed";
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id ? { ...t, status: newStatus as TaskStatus } : t
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) {
+        // Revert on failure
+        setTasks((prev) =>
+          prev.map((t) => (t.id === task.id ? task : t))
+        );
+      }
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === task.id ? task : t))
+      );
+    }
+  }, []);
+
+  // ─── Delete task ──────────────────────────────────────
+
+  const deleteTask = useCallback(async (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setExpandedTaskId(null);
+
+    try {
+      await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    } catch {
+      // Already removed from UI — re-fetch to sync
+      fetchTasks(filterToStatus(filter));
+    }
+  }, [fetchTasks, filter]);
+
+  // ─── Rerun task ───────────────────────────────────────
+
+  const rerunTask = useCallback(async (taskId: string) => {
+    // Optimistic: set to processing
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, status: "in_progress" as TaskStatus, title: "Processing...", result: null, error_message: null }
+          : t
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/rerun`, { method: "POST" });
+      if (res.ok) {
+        setPollingIds((prev) => [...prev, taskId]);
+      }
+    } catch {
+      // Re-fetch to get true state
+      fetchTasks(filterToStatus(filter));
+    }
+  }, [fetchTasks, filter]);
+
+  // ─── Fetch chat history on mount ──────────────────────
+
   useEffect(() => {
     async function loadHistory() {
       try {
@@ -654,7 +1119,8 @@ export default function CommandCenterPage() {
     }
   }, [chatMessages, activeTab, scrollToBottom]);
 
-  // Send a message
+  // ─── Send chat message ────────────────────────────────
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim() || isSending) return;
@@ -669,7 +1135,6 @@ export default function CommandCenterPage() {
       setIsSending(true);
       setChatError(null);
 
-      // Add placeholder for streaming response
       const streamingId = "streaming-" + Date.now();
       setChatMessages((prev) => [
         ...prev,
@@ -731,7 +1196,6 @@ export default function CommandCenterPage() {
             ? err.message
             : "Your agent is currently offline. Check your dashboard for status.";
         setChatError(errorMsg);
-        // Remove the streaming placeholder
         setChatMessages((prev) =>
           prev.filter((m) => m.id !== streamingId)
         );
@@ -742,32 +1206,44 @@ export default function CommandCenterPage() {
     [isSending]
   );
 
-  // Handle input submit (Enter key or Send button)
+  // ─── Handle input submit ─────────────────────────────
+
   const handleSubmit = useCallback(() => {
     if (!chatInput.trim()) return;
-    // If on Tasks tab, switch to Chat and send there
-    if (activeTab === "tasks") {
-      setActiveTab("chat");
-    }
-    sendMessage(chatInput);
-  }, [chatInput, activeTab, sendMessage]);
 
-  // Handle chip click
+    if (activeTab === "tasks") {
+      // Tasks tab: create a task
+      createTask(chatInput);
+      setChatInput("");
+    } else if (activeTab === "chat") {
+      // Chat tab: send message
+      sendMessage(chatInput);
+    }
+  }, [chatInput, activeTab, createTask, sendMessage]);
+
+  // ─── Handle chip click ────────────────────────────────
+
   const handleChipClick = useCallback(
     (prefill: string) => {
-      if (activeTab !== "chat") {
-        setActiveTab("chat");
-      }
-      // If prefill ends with a full sentence (like "What's on my schedule today?"), send it immediately
-      if (prefill.endsWith("?") || prefill.endsWith("bounties")) {
-        sendMessage(prefill);
+      if (activeTab === "chat") {
+        // Chat tab: same behavior as before
+        if (prefill.endsWith("?") || !prefill.endsWith(" ")) {
+          sendMessage(prefill);
+        } else {
+          setChatInput(prefill);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }
       } else {
-        setChatInput(prefill);
-        // Focus input after state update
-        requestAnimationFrame(() => inputRef.current?.focus());
+        // Tasks tab: create a task or prefill input
+        if (prefill.endsWith(" ")) {
+          setChatInput(prefill);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        } else {
+          createTask(prefill);
+        }
       }
     },
-    [activeTab, sendMessage]
+    [activeTab, sendMessage, createTask]
   );
 
   return (
@@ -790,6 +1266,7 @@ export default function CommandCenterPage() {
             active={filter}
             onChange={setFilter}
             visible={activeTab === "tasks"}
+            failedCount={failedCount}
           />
         </div>
 
@@ -832,18 +1309,49 @@ export default function CommandCenterPage() {
             transition={{ duration: 0.15 }}
           >
             {activeTab === "tasks" && (
-              <div className="space-y-4">
-                {filteredTasks.length === 0 ? (
-                  <p
-                    className="text-center py-12 text-sm"
-                    style={{ color: "var(--muted)" }}
+              <div>
+                {/* Task error banner */}
+                {taskError && (
+                  <div
+                    className="mb-4 rounded-xl px-4 py-3 text-sm flex items-center justify-between"
+                    style={{
+                      background: "#fef2f2",
+                      border: "1px solid #fecaca",
+                      color: "#b91c1c",
+                    }}
                   >
-                    No tasks match this filter.
-                  </p>
+                    <span>{taskError}</span>
+                    <button
+                      onClick={() => setTaskError(null)}
+                      className="ml-3 text-xs font-medium cursor-pointer hover:underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                {isLoadingTasks ? (
+                  <TasksSkeleton />
+                ) : tasks.length === 0 ? (
+                  <TasksEmptyState />
                 ) : (
-                  filteredTasks.map((task) => (
-                    <TaskCard key={task.id} task={task} />
-                  ))
+                  <div className="space-y-4">
+                    {tasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        isExpanded={expandedTaskId === task.id}
+                        onToggleExpand={() =>
+                          setExpandedTaskId(
+                            expandedTaskId === task.id ? null : task.id
+                          )
+                        }
+                        onToggleComplete={() => toggleComplete(task)}
+                        onDelete={() => deleteTask(task.id)}
+                        onRerun={() => rerunTask(task.id)}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
